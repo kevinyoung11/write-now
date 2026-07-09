@@ -10,6 +10,7 @@ import {
   LinuxDoTrendsPage,
   HotTopicsPage,
 } from './pages';
+import { WorkbenchPage } from './features/workbench/WorkbenchPage';
 
 const LayoutPage = lazy(() =>
   import('./pages/LayoutPage').then((mod) => ({ default: mod.LayoutPage })),
@@ -19,7 +20,8 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<WorkbenchPage />} />
+        <Route path="/rewrite" element={<HomePage />} />
         <Route path="/styles" element={<StylesPage />} />
         <Route path="/materials" element={<MaterialsPage />} />
         <Route path="/reviews" element={<ReviewsPage />} />
