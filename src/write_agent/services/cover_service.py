@@ -1,0 +1,469 @@
+"""
+封面生成服务
+"""
+import asyncio
+import json
+import logging
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+from urllib.parse import urlparse
+
+import requests
+from sqlmodel import Session, create_engine, select
+
+from write_agent.core import get_settings
+from write_agent.models.cover_record import CoverRecord
+from write_agent.models.rewrite_record import RewriteRecord
+from write_agent.models.writing_style import WritingStyle
+from write_agent.observability import bind_entities, emit_obs_event, obs_scope
+from write_agent.services.llm_service import get_llm_service
+
+logger = logging.getLogger(__name__)
+settings = get_settings()
+
+# 创建数据库引擎
+engine = create_engine(settings.database_url, echo=False)
+
+
+class CoverService:
+    """封面生成服务"""
+
+    def __init__(self):
+        settings = get_settings()
+        self.base_url = settings.volcengine_base_url
+        self.model = settings.volcengine_model
+        self.api_key = settings.volcengine_api_key
+        self.prompt_llm_timeout_seconds = max(
+            1.0,
+            float(settings.cover_prompt_llm_timeout_seconds),
+        )
+        self.cover_storage_dir = Path(settings.cover_storage_dir).resolve()
+        self.cover_media_url_prefix = settings.cover_media_url_prefix
+        if not self.cover_media_url_prefix.startswith("/"):
+            self.cover_media_url_prefix = f"/{self.cover_media_url_prefix}"
+        self.cover_storage_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _infer_image_extension(source_url: str) -> str:
+        """根据远端 URL 推断文件扩展名。"""
+        ext = Path(urlparse(source_url).path).suffix.lower()
+        if ext in {".jpg", ".jpeg", ".png", ".webp"}:
+            return ext
+        return ".jpg"
+
+    def persist_image_locally(self, source_url: str, cover_id: int, rewrite_id: int) -> str:
+        """
+        将远端封面图下载到本地并返回静态访问 URL。
+        """
+        if not source_url:
+            raise ValueError("source_url 不能为空")
+
+        now = datetime.now()
+        relative_dir = Path(str(now.year), f"{now.month:02d}")
+        ext = self._infer_image_extension(source_url)
+        filename = f"cover-{cover_id}-rewrite-{rewrite_id}-{int(now.timestamp())}{ext}"
+
+        target_dir = self.cover_storage_dir / relative_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = target_dir / filename
+
+        response = requests.get(source_url, timeout=120, stream=True)
+        response.raise_for_status()
+
+        with target_path.open("wb") as fp:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    fp.write(chunk)
+
+        media_root = Path(self.cover_media_url_prefix.strip("/"))
+        local_url = Path("/") / media_root / relative_dir / filename
+        return local_url.as_posix()
+
+    @staticmethod
+    def _extract_keywords_fallback(content: str) -> str:
+        """当LLM不可用时，使用文本片段生成关键词。"""
+        compact = re.sub(r"\s+", " ", content).strip()
+        segments = re.split(r"[。！？!?,，；;\n]+", compact)
+        selected = []
+        for segment in segments:
+            cleaned = segment.strip()
+            if 2 <= len(cleaned) <= 20:
+                selected.append(cleaned)
+            if len(selected) >= 5:
+                break
+        if not selected:
+            selected = [compact[:16]]
+        return ", ".join(selected)
+
+    @staticmethod
+    def _build_prompt_fallback(
+        keywords: str,
+        style_description: str,
+        title: str = "",
+    ) -> str:
+        """当LLM不可用时，构造可直接用于生图的英文Prompt。"""
+        style_hint = (
+            f"style hints: {style_description}; " if style_description else ""
+        )
+        title_anchor = title.strip()[:120]
+        title_hint = (
+            f"primary title anchor: {title_anchor}; "
+            if title_anchor
+            else ""
+        )
+        return (
+            "A clean editorial cover illustration, "
+            f"{title_hint}"
+            f"topic keywords: {keywords}; "
+            f"{style_hint}"
+            "cinematic composition, strong focal subject, "
+            "balanced negative space, soft dramatic lighting, "
+            "ultra detailed, no watermark, no text overlay."
+        )
+
+    @staticmethod
+    def _compress_style_description(raw: str, max_chars: int = 600) -> str:
+        """
+        压缩风格描述，避免把超长 JSON 直接塞入提示词导致请求过慢。
+        """
+        text = (raw or "").strip()
+        if not text:
+            return ""
+
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            parsed = None
+
+        if isinstance(parsed, dict):
+            preferred_keys = [
+                "overall_summary",
+                "persona",
+                "thinking_pattern",
+                "opening_pattern",
+                "tone",
+            ]
+            segments: list[str] = []
+            for key in preferred_keys:
+                value = parsed.get(key)
+                if isinstance(value, str) and value.strip():
+                    segments.append(f"{key}: {value.strip()}")
+            if segments:
+                text = " | ".join(segments)
+
+        text = re.sub(r"\s+", " ", text).strip()
+        if len(text) > max_chars:
+            return f"{text[:max_chars]}..."
+        return text
+
+    async def generate_prompt(
+        self,
+        content: str,
+        style: Optional[WritingStyle] = None,
+        title: Optional[str] = None,
+    ) -> str:
+        """
+        基于文章内容和风格生成图片Prompt
+
+        Args:
+            content: 文章内容
+            style: 写作风格（可选）
+
+        Returns:
+            生成的图片Prompt
+        """
+        with obs_scope("SVC.COVER.GENERATE_PROMPT", "WORKFLOW_NODE"):
+            llm = get_llm_service()
+
+            style_description = ""
+            if style:
+                style_attrs = []
+                if style.name:
+                    style_attrs.append(f"风格名称: {style.name}")
+                if style.style_description:
+                    compressed = self._compress_style_description(style.style_description)
+                    if compressed:
+                        style_attrs.append(f"风格描述: {compressed}")
+                if style.tags:
+                    style_attrs.append(f"标签: {style.tags}")
+                if style_attrs:
+                    style_description = "，".join(style_attrs)
+
+            if not content or len(content.strip()) < 10:
+                raise ValueError("文章内容过短，无法生成封面")
+            emit_obs_event(
+                level="INFO",
+                message="svc.cover.generate_prompt.start",
+                payload={"content_len": len(content), "has_style": bool(style)},
+            )
+            title_summary = (title or "").strip()
+            extract_prompt = f"""请从以下文章中提取3-5个核心主题关键词，这些关键词将用于生成封面图片。
+标题（重点锚点）：
+{title_summary[:120] or "（无标题）"}
+
+文章内容：
+{content[:2000]}
+
+请直接输出关键词，用逗号分隔，不要包含其他内容。
+"""
+
+            async def chat_with_timeout(payload_messages: list[dict]) -> str:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(
+                        llm.chat,
+                        messages=payload_messages,
+                    ),
+                    timeout=self.prompt_llm_timeout_seconds,
+                )
+
+            try:
+                keywords_response: str = await chat_with_timeout(
+                    [{"role": "user", "content": extract_prompt}]
+                )
+                keywords = keywords_response.strip()
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "关键词提取超时（%.1fs），使用本地兜底策略",
+                    self.prompt_llm_timeout_seconds,
+                )
+                keywords = self._extract_keywords_fallback(content)
+            except Exception as exc:
+                logger.warning("关键词提取失败，使用本地兜底策略: %s", exc)
+                keywords = self._extract_keywords_fallback(content)
+
+            cover_prompt = f"""请为文章生成一个适合的封面图片描述词（英文）。
+
+标题（主锚点，优先参考）：{title_summary[:120] or "（无标题）"}
+文章主题关键词：{keywords}
+{style_description}
+
+要求：
+1. 描述一个具体的视觉画面
+2. 包含艺术风格（如：油画、水彩、摄影、电影感、3D渲染等）
+3. 包含色调和氛围（如：暖色调、冷色调、赛博朋克、梦幻等）
+4. 包含构图元素
+5. 添加高质量修饰词（如：超高清、8K、景深、光线追踪、OC渲染等）
+6. 输出纯英文描述，不要包含任何解释
+
+直接输出Prompt，不要包含任何前缀或后缀。
+"""
+
+            try:
+                prompt_response: str = await chat_with_timeout(
+                    [{"role": "user", "content": cover_prompt}]
+                )
+                generated_prompt = prompt_response.strip()
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "封面Prompt生成超时（%.1fs），使用本地兜底策略",
+                    self.prompt_llm_timeout_seconds,
+                )
+                generated_prompt = self._build_prompt_fallback(
+                    keywords=keywords,
+                    style_description=style_description,
+                    title=title_summary,
+                )
+            except Exception as exc:
+                logger.warning("封面Prompt生成失败，使用本地兜底策略: %s", exc)
+                generated_prompt = self._build_prompt_fallback(
+                    keywords=keywords,
+                    style_description=style_description,
+                    title=title_summary,
+                )
+
+            logger.debug(f"封面Prompt已生成，长度: {len(generated_prompt)} 字符")
+            emit_obs_event(
+                level="INFO",
+                message="svc.cover.generate_prompt.done",
+                payload={"prompt_len": len(generated_prompt)},
+            )
+            return generated_prompt
+
+    async def generate_image(
+        self,
+        prompt: str,
+        size: str = "2k",
+        rewrite_id: int = 0
+    ) -> dict:
+        """
+        调用即梦API生成图片
+
+        Args:
+            prompt: 图片生成Prompt
+            size: 图片尺寸
+            rewrite_id: 改写记录ID
+
+        Returns:
+            包含image_url和size的字典
+        """
+        with obs_scope(
+            "SVC.COVER.GENERATE_IMAGE",
+            "EXTERNAL_HTTP_CALL",
+            entities={"rewrite_id": rewrite_id},
+        ):
+            bind_entities({"rewrite_id": rewrite_id})
+            url = f"{self.base_url}/api/v3/images/generations"
+
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+
+            payload = {
+                "model": self.model,
+                "prompt": prompt,
+                "size": size,
+                "response_format": "url",
+                "stream": False,
+                "watermark": False,
+                "sequential_image_generation": "disabled"
+            }
+
+            logger.info(f"调用即梦API生成图片，rewrite_id={rewrite_id}")
+            emit_obs_event(
+                level="INFO",
+                message="svc.cover.generate_image.start",
+                entities={"rewrite_id": rewrite_id},
+                payload={"size": size, "prompt_len": len(prompt or "")},
+            )
+
+            try:
+                response = await asyncio.to_thread(
+                    requests.post,
+                    url,
+                    headers=headers,
+                    json=payload,
+                    timeout=120,
+                )
+                response.raise_for_status()
+
+                data = response.json()
+
+                if "error" in data:
+                    raise Exception(f"API错误: {data['error']['message']}")
+
+                image_url = data["data"][0]["url"]
+                image_size = data["data"][0]["size"]
+
+                logger.info(f"图片生成成功: {image_url}")
+                emit_obs_event(
+                    level="INFO",
+                    message="svc.cover.generate_image.done",
+                    entities={"rewrite_id": rewrite_id},
+                )
+                return {
+                    "image_url": image_url,
+                    "size": image_size
+                }
+
+            except Exception as e:
+                logger.error(f"图片生成失败: {e}")
+                emit_obs_event(
+                    level="ERROR",
+                    message="svc.cover.generate_image.failed",
+                    entities={"rewrite_id": rewrite_id},
+                    error_code="E_COVER_GENERATE_FAILED",
+                    payload={"error": str(e)},
+                )
+                raise
+
+    def save_cover(
+        self,
+        rewrite_id: int,
+        prompt: str,
+        image_url: Optional[str] = None,
+        size: str = "2k",
+        status: str = "pending",
+        error_message: Optional[str] = None
+    ) -> CoverRecord:
+        """保存封面记录"""
+        with Session(engine) as session:
+            cover = CoverRecord(
+                rewrite_id=rewrite_id,
+                prompt=prompt,
+                image_url=image_url,
+                size=size,
+                status=status,
+                error_message=error_message,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            session.add(cover)
+            session.commit()
+            session.refresh(cover)
+            return cover
+
+    def update_cover(
+        self,
+        cover_id: int,
+        image_url: Optional[str] = None,
+        size: Optional[str] = None,
+        status: Optional[str] = None,
+        error_message: Optional[str] = None
+    ) -> Optional[CoverRecord]:
+        """更新封面记录"""
+        with Session(engine) as session:
+            cover = session.get(CoverRecord, cover_id)
+            if cover:
+                if image_url is not None:
+                    cover.image_url = image_url
+                if size is not None:
+                    cover.size = size
+                if status is not None:
+                    cover.status = status
+                if error_message is not None:
+                    cover.error_message = error_message
+                cover.updated_at = datetime.now()
+                session.commit()
+                session.refresh(cover)
+            return cover
+
+    def get_cover(self, cover_id: int) -> Optional[CoverRecord]:
+        """获取封面记录"""
+        with Session(engine) as session:
+            return session.get(CoverRecord, cover_id)
+
+    def get_cover_by_rewrite(self, rewrite_id: int) -> Optional[CoverRecord]:
+        """获取某次改写的封面"""
+        with Session(engine) as session:
+            statement = select(CoverRecord).where(
+                CoverRecord.rewrite_id == rewrite_id
+            ).order_by(CoverRecord.created_at.desc())
+            return session.exec(statement).first()
+
+    def get_covers_by_rewrite_ids(self, rewrite_ids: list[int]) -> list[CoverRecord]:
+        """批量获取改写对应的最新封面。"""
+        if not rewrite_ids:
+            return []
+
+        with Session(engine) as session:
+            statement = (
+                select(CoverRecord)
+                .where(CoverRecord.rewrite_id.in_(rewrite_ids))
+                .order_by(CoverRecord.rewrite_id.asc(), CoverRecord.created_at.desc())
+            )
+            rows = session.exec(statement).all()
+
+        latest_by_rewrite: dict[int, CoverRecord] = {}
+        for cover in rows:
+            latest_by_rewrite.setdefault(cover.rewrite_id, cover)
+
+        order_map = {rewrite_id: idx for idx, rewrite_id in enumerate(rewrite_ids)}
+        return sorted(
+            latest_by_rewrite.values(),
+            key=lambda cover: order_map.get(cover.rewrite_id, len(order_map)),
+        )
+
+
+# 全局单例
+_cover_service: Optional[CoverService] = None
+
+
+def get_cover_service() -> CoverService:
+    """获取封面服务单例"""
+    global _cover_service
+    if _cover_service is None:
+        _cover_service = CoverService()
+    return _cover_service
