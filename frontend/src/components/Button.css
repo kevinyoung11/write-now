@@ -17,12 +17,14 @@
 
 /* Variants */
 .btn-primary {
-  background: var(--accent);
-  color: #000;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--ink);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: #35322b;
+  border-color: #35322b;
 }
 
 .btn-secondary {

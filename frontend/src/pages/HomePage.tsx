@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  BookOpen,
   Clipboard,
   Copy,
   Download,
   FolderOpen,
+  History,
   Loader2,
   Plus,
   Send,
@@ -143,6 +145,10 @@ export const HomePage: React.FC = () => {
   const [selectedHistory, setSelectedHistory] = useState<RewriteRecord | null>(
     null,
   );
+
+  const [sidePanel, setSidePanel] = useState<"history" | "rag" | null>(null);
+  const togglePanel = (panel: "history" | "rag") =>
+    setSidePanel((current) => (current === panel ? null : panel));
 
   const [showNewStyle, setShowNewStyle] = useState(false);
   const [newStyleName, setNewStyleName] = useState("");
@@ -562,322 +568,370 @@ export const HomePage: React.FC = () => {
   const layoutRewriteId = rewriteIdFromQuery;
 
   return (
-    <div className="home-v2-page">
+    <div className="es-page">
       <AppTopNav />
 
-      <main className="home-v2-main">
-        <section className="home-v2-source">
-          <div className="home-v2-panel-header">
-            <div>
-              <h2>{homeText.sourceTitle}</h2>
-              <span>{homeText.sourceSubtitle}</span>
-            </div>
-            <div className="home-v2-source-actions">
-              <button
-                type="button"
-                title={homeText.pickMaterial}
-                onClick={openMaterialPicker}
-              >
-                <FolderOpen size={15} />
-              </button>
-              <button
-                type="button"
-                title={homeText.clear}
-                onClick={() => setSourceContent("")}
-              >
-                <X size={15} />
-              </button>
-              <button
-                type="button"
-                title={homeText.paste}
-                onClick={async () => {
-                  try {
-                    const text = await navigator.clipboard.readText();
-                    if (text) {
-                      setSourceContent(text);
-                    }
-                  } catch {
-                    // ignore clipboard permission errors
-                  }
-                }}
-              >
-                <Clipboard size={15} />
-              </button>
-            </div>
+      <header className="es-pagehead">
+        <div>
+          <p className="es-eyebrow">
+            <b>WRITE</b>
+            <span>{homeText.sourceTitle} → {homeText.outputTitle}</span>
+          </p>
+        </div>
+        <div className="es-pagehead-actions">
+          <button
+            type="button"
+            className={`es-panel-toggle${sidePanel === "rag" ? " active" : ""}`}
+            onClick={() => togglePanel("rag")}
+          >
+            <BookOpen size={15} />
+            {homeText.ragMaterialsTitle}
+          </button>
+          <button
+            type="button"
+            className={`es-panel-toggle${sidePanel === "history" ? " active" : ""}`}
+            onClick={() => togglePanel("history")}
+          >
+            <History size={15} />
+            {homeText.historyTitle}
+          </button>
+        </div>
+      </header>
+
+      <div className="es-toolbar">
+        <div className="home-v2-compose-group">
+          <label>{homeText.styleLabel}</label>
+          <div className="home-v2-inline-row">
+            <select
+              value={styleValue}
+              onChange={(event) =>
+                setSelectedStyleId(
+                  event.target.value ? Number(event.target.value) : undefined,
+                )
+              }
+            >
+              <option value="">{homeText.chooseStyle}</option>
+              {styles.map((style) => (
+                <option key={style.id} value={style.id}>
+                  {style.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="home-v2-mini-btn"
+              onClick={() => setShowNewStyle(true)}
+            >
+              <Plus size={13} />
+              {homeText.newStyle}
+            </button>
           </div>
+        </div>
 
-          <textarea
-            className="home-v2-source-textarea"
-            placeholder={homeText.sourcePlaceholder}
-            value={sourceContent}
-            onChange={(event) => setSourceContent(event.target.value)}
-          />
+        <div className="home-v2-compose-group">
+          <label>{homeText.targetLength}</label>
+          <div className="home-v2-inline-row">
+            <input
+              type="range"
+              min={0}
+              max={TARGET_WORD_OPTIONS.length - 1}
+              value={Math.max(0, TARGET_WORD_OPTIONS.indexOf(targetLength))}
+              onChange={(event) => {
+                const index = Number(event.target.value);
+                setTargetLength(TARGET_WORD_OPTIONS[index]);
+              }}
+            />
+            <strong>{t(homeText.targetWords, { count: targetLength })}</strong>
+          </div>
+        </div>
 
-          <div className="home-v2-compose-bar">
-            <div className="home-v2-compose-group">
-              <label>{homeText.styleLabel}</label>
-              <div className="home-v2-inline-row">
-                <select
-                  value={styleValue}
-                  onChange={(event) =>
-                    setSelectedStyleId(
-                      event.target.value ? Number(event.target.value) : undefined,
-                    )
-                  }
-                >
-                  <option value="">{homeText.chooseStyle}</option>
-                  {styles.map((style) => (
-                    <option key={style.id} value={style.id}>
-                      {style.name}
-                    </option>
-                  ))}
-                </select>
+        <div className="home-v2-compose-group">
+          <label>{homeText.ragBoost}</label>
+          <div className="home-v2-rag-config">
+            <label className="home-v2-rag-toggle">
+              <input
+                type="checkbox"
+                checked={enableRag}
+                onChange={(event) => setEnableRag(event.target.checked)}
+              />
+              <span>{enableRag ? homeText.ragEnabled : homeText.ragDisabled}</span>
+            </label>
+            <select
+              value={String(ragTopK)}
+              disabled={!enableRag}
+              onChange={(event) => setRagTopK(Number(event.target.value))}
+            >
+              {RAG_TOP_K_OPTIONS.map((count) => (
+                <option key={count} value={count}>
+                  {t(homeText.ragReferenceCount, { count })}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="es-toolbar-spacer" />
+
+        <div className="home-v2-compose-actions">
+          <Button
+            onClick={handleRewrite}
+            disabled={!sourceContent.trim() || !selectedStyleId || isLoading}
+            loading={isLoading}
+            icon={<Send size={14} />}
+          >
+            {isLoading ? homeText.rewriteLoading : homeText.startRewrite}
+          </Button>
+          {isLoading && (
+            <Button
+              variant="secondary"
+              onClick={cancelRewrite}
+              icon={<X size={14} />}
+            >
+              {homeText.cancel}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="es-workspace">
+        <main className="es-canvas">
+          <section className="es-doc es-doc--source">
+            <div className="es-doc-head">
+              <div>
+                <h2>{homeText.sourceTitle}</h2>
+                <span className="es-doc-sub">{homeText.sourceSubtitle}</span>
+              </div>
+              <div className="home-v2-source-actions">
                 <button
                   type="button"
-                  className="home-v2-mini-btn"
-                  onClick={() => setShowNewStyle(true)}
+                  title={homeText.pickMaterial}
+                  onClick={openMaterialPicker}
                 >
-                  <Plus size={13} />
-                  {homeText.newStyle}
+                  <FolderOpen size={15} />
+                </button>
+                <button
+                  type="button"
+                  title={homeText.clear}
+                  onClick={() => setSourceContent("")}
+                >
+                  <X size={15} />
+                </button>
+                <button
+                  type="button"
+                  title={homeText.paste}
+                  onClick={async () => {
+                    try {
+                      const text = await navigator.clipboard.readText();
+                      if (text) {
+                        setSourceContent(text);
+                      }
+                    } catch {
+                      // ignore clipboard permission errors
+                    }
+                  }}
+                >
+                  <Clipboard size={15} />
                 </button>
               </div>
             </div>
 
-            <div className="home-v2-compose-group">
-              <label>{homeText.targetLength}</label>
-              <div className="home-v2-inline-row">
-                <input
-                  type="range"
-                  min={0}
-                  max={TARGET_WORD_OPTIONS.length - 1}
-                  value={Math.max(0, TARGET_WORD_OPTIONS.indexOf(targetLength))}
-                  onChange={(event) => {
-                    const index = Number(event.target.value);
-                    setTargetLength(TARGET_WORD_OPTIONS[index]);
-                  }}
-                />
-                <strong>{t(homeText.targetWords, { count: targetLength })}</strong>
-              </div>
-            </div>
+            <textarea
+              className="home-v2-source-textarea"
+              placeholder={homeText.sourcePlaceholder}
+              value={sourceContent}
+              onChange={(event) => setSourceContent(event.target.value)}
+            />
 
-            <div className="home-v2-compose-group">
-              <label>{homeText.ragBoost}</label>
-              <div className="home-v2-rag-config">
-                <label className="home-v2-rag-toggle">
-                  <input
-                    type="checkbox"
-                    checked={enableRag}
-                    onChange={(event) => setEnableRag(event.target.checked)}
-                  />
-                  <span>{enableRag ? homeText.ragEnabled : homeText.ragDisabled}</span>
-                </label>
-                <select
-                  value={String(ragTopK)}
-                  disabled={!enableRag}
-                  onChange={(event) => setRagTopK(Number(event.target.value))}
-                >
-                  {RAG_TOP_K_OPTIONS.map((count) => (
-                    <option key={count} value={count}>
-                      {t(homeText.ragReferenceCount, { count })}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="home-v2-footnote">
+              <span>{t(homeText.sourceWords, { count: countWords(sourceContent) })}</span>
+              <span>{t(homeText.targetWords, { count: targetLength })}</span>
             </div>
+          </section>
 
-            <div className="home-v2-compose-actions">
-              <Button
-                onClick={handleRewrite}
-                disabled={!sourceContent.trim() || !selectedStyleId || isLoading}
-                loading={isLoading}
-                icon={<Send size={14} />}
-              >
-                {isLoading ? homeText.rewriteLoading : homeText.startRewrite}
-              </Button>
-              {isLoading && (
-                <Button
-                  variant="secondary"
-                  onClick={cancelRewrite}
-                  icon={<X size={14} />}
-                >
-                  {homeText.cancel}
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="home-v2-footnote">
-            <span>{t(homeText.sourceWords, { count: countWords(sourceContent) })}</span>
-            <span>{t(homeText.targetWords, { count: targetLength })}</span>
-          </div>
-        </section>
-
-        <section className="home-v2-output">
-          <div className="home-v2-panel-header">
-            <div>
-              <h2>{homeText.outputTitle} {isLoading ? homeText.outputLoading : ""}</h2>
-              {resultWordCount > 0 && (
-                <span>{t(homeText.wordCount, { count: resultWordCount })}</span>
-              )}
-            </div>
-            <div className="home-v2-output-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  if (layoutRewriteId) {
-                    navigate(`/layout?rewrite_id=${layoutRewriteId}`);
-                  }
-                }}
-                disabled={!layoutRewriteId}
-              >
-                {homeText.goToLayout}
-              </button>
-              <button type="button" onClick={handleCopy} disabled={!rewrittenContent}>
-                <Copy size={14} />
-                {homeText.copy}
-              </button>
-              <button type="button" onClick={handleExport} disabled={!rewrittenContent}>
-                <Download size={14} />
-                {homeText.export}
-              </button>
-            </div>
-          </div>
-
-          <div className="home-v2-paper">
-            {isLoading && !rewrittenContent ? (
-              <div className="home-v2-placeholder">
-                <Loader2 size={22} className="spin" />
-                <span>{homeText.generatingPlaceholder}</span>
-              </div>
-            ) : rewrittenContent ? (
-              <div className="home-v2-result-text">
-                {rewrittenContent}
-                {isLoading && (
-                  <span className="home-v2-streaming">
-                    <Loader2 size={14} className="spin" />
-                    {homeText.receiving}
-                  </span>
+          <section className="es-doc es-doc--output">
+            <div className="es-doc-head">
+              <div>
+                <h2>{homeText.outputTitle} {isLoading ? homeText.outputLoading : ""}</h2>
+                {resultWordCount > 0 && (
+                  <span className="es-doc-sub">{t(homeText.wordCount, { count: resultWordCount })}</span>
                 )}
               </div>
-            ) : (
-              <div className="home-v2-placeholder">
-                <Sparkles size={36} />
-                <span>{homeText.resultPlaceholder}</span>
+              <div className="home-v2-output-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (layoutRewriteId) {
+                      navigate(`/layout?rewrite_id=${layoutRewriteId}`);
+                    }
+                  }}
+                  disabled={!layoutRewriteId}
+                >
+                  {homeText.goToLayout}
+                </button>
+                <button type="button" onClick={handleCopy} disabled={!rewrittenContent}>
+                  <Copy size={14} />
+                  {homeText.copy}
+                </button>
+                <button type="button" onClick={handleExport} disabled={!rewrittenContent}>
+                  <Download size={14} />
+                  {homeText.export}
+                </button>
               </div>
-            )}
-          </div>
+            </div>
 
-          {autoReviewStatus !== "idle" && (
-            <div className={`home-v2-review-status ${autoReviewStatus}`}>
-              <span>{autoReviewMessage}</span>
-              {autoReviewRewriteId && (
-                <a href={`/reviews?rewrite_id=${autoReviewRewriteId}`}>
-                  {homeText.goToReviewPage}
-                </a>
+            <div className="home-v2-paper">
+              {isLoading && !rewrittenContent ? (
+                <div className="home-v2-placeholder">
+                  <Loader2 size={22} className="spin" />
+                  <span>{homeText.generatingPlaceholder}</span>
+                </div>
+              ) : rewrittenContent ? (
+                <div className="home-v2-result-text">
+                  {rewrittenContent}
+                  {isLoading && (
+                    <span className="home-v2-streaming">
+                      <Loader2 size={14} className="spin" />
+                      {homeText.receiving}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="home-v2-placeholder">
+                  <Sparkles size={36} />
+                  <span>{homeText.resultPlaceholder}</span>
+                </div>
               )}
             </div>
-          )}
 
-          <section className="home-v2-rag-panel">
-            <div className="home-v2-rag-panel-head">
-              <h3>{homeText.ragMaterialsTitle}</h3>
-              <span>
-                {enableRag
-                  ? t(homeText.ragTop, { count: ragTopK })
-                  : homeText.ragClosed}
-              </span>
-            </div>
-
-            {isLoading ? (
-              <div className="home-v2-rag-empty">{homeText.ragAfterRewrite}</div>
-            ) : !enableRag ? (
-              <div className="home-v2-rag-empty">{homeText.ragNotEnabled}</div>
-            ) : ragReferences.length === 0 ? (
-              <div className="home-v2-rag-empty">{homeText.ragNoHit}</div>
-            ) : (
-              <div className="home-v2-rag-list">
-                {ragReferences.map((item) => (
-                  <article
-                    key={`${item.material_id}-${item.title}-${item.score}`}
-                    className="home-v2-rag-item"
-                  >
-                    <div className="home-v2-rag-item-head">
-                      <strong>
-                        {item.title ||
-                          t(homeText.materialFallback, { id: item.material_id })}
-                      </strong>
-                      <span>{homeText.similarity} {(item.score * 100).toFixed(1)}%</span>
-                    </div>
-                    <p>{summarize(item.content, 160)}</p>
-                    <div className="home-v2-rag-item-meta">
-                      {item.tags && <span>{item.tags}</span>}
-                      {item.source_url && (
-                        <a href={item.source_url} target="_blank" rel="noreferrer">
-                          {homeText.viewSource}
-                        </a>
-                      )}
-                    </div>
-                  </article>
-                ))}
+            {autoReviewStatus !== "idle" && (
+              <div className={`home-v2-review-status ${autoReviewStatus}`}>
+                <span>{autoReviewMessage}</span>
+                {autoReviewRewriteId && (
+                  <a href={`/reviews?rewrite_id=${autoReviewRewriteId}`}>
+                    {homeText.goToReviewPage}
+                  </a>
+                )}
               </div>
             )}
           </section>
-        </section>
+        </main>
 
-        <aside className="home-v2-history">
-          <div className="home-v2-panel-header">
-            <div>
-              <h2>{homeText.historyTitle}</h2>
-              <span>{t(homeText.historyPerPage, { count: HISTORY_PAGE_SIZE })}</span>
-            </div>
-          </div>
-          <div className="home-v2-history-list">
-            {isHistoryLoading ? (
-              <div className="home-v2-empty">{homeText.loading}</div>
-            ) : rewrites.length === 0 ? (
-              <div className="home-v2-empty">{homeText.noHistory}</div>
-            ) : (
-              rewrites.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`home-v2-history-item ${rewriteIdFromQuery === item.id ? "active" : ""}`}
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.set("rewrite_id", String(item.id));
-                    setSearchParams(next, { replace: true });
-                    setSelectedHistory(item);
-                  }}
-                >
-                  <div className="home-v2-history-title">
-                    #{item.id} {summarize(item.source_article)}
-                  </div>
-                  <div className="home-v2-history-meta">
-                    <span>{formatTime(item.created_at, locale)}</span>
-                    <span className={`status-${item.status}`}>
-                      {item.status === "completed"
-                        ? homeText.statusCompleted
-                        : item.status === "running"
-                          ? homeText.statusRunning
-                          : item.status === "failed"
-                            ? homeText.statusFailed
-                            : homeText.statusPending}
-                    </span>
-                  </div>
+        <aside className={`es-side${sidePanel ? " open" : ""}`}>
+          {sidePanel === "rag" && (
+            <>
+              <div className="es-side-head">
+                <div>
+                  <span>{homeText.ragMaterialsTitle}</span>
+                  <span className="es-side-sub">
+                    {enableRag
+                      ? t(homeText.ragTop, { count: ragTopK })
+                      : homeText.ragClosed}
+                  </span>
+                </div>
+                <button type="button" className="es-side-close" onClick={() => setSidePanel(null)}>
+                  <X size={14} />
                 </button>
-              ))
-            )}
-          </div>
-          <div className="home-v2-history-pagination">
-            <Pagination
-              page={historyPage}
-              total={historyTotal}
-              limit={HISTORY_PAGE_SIZE}
-              onPageChange={(nextPage) => setHistoryPage(nextPage)}
-            />
-          </div>
+              </div>
+              <div className="es-side-body">
+                {isLoading ? (
+                  <div className="home-v2-rag-empty">{homeText.ragAfterRewrite}</div>
+                ) : !enableRag ? (
+                  <div className="home-v2-rag-empty">{homeText.ragNotEnabled}</div>
+                ) : ragReferences.length === 0 ? (
+                  <div className="home-v2-rag-empty">{homeText.ragNoHit}</div>
+                ) : (
+                  <div className="home-v2-rag-list">
+                    {ragReferences.map((item) => (
+                      <article
+                        key={`${item.material_id}-${item.title}-${item.score}`}
+                        className="home-v2-rag-item"
+                      >
+                        <div className="home-v2-rag-item-head">
+                          <strong>
+                            {item.title ||
+                              t(homeText.materialFallback, { id: item.material_id })}
+                          </strong>
+                          <span>{homeText.similarity} {(item.score * 100).toFixed(1)}%</span>
+                        </div>
+                        <p>{summarize(item.content, 160)}</p>
+                        <div className="home-v2-rag-item-meta">
+                          {item.tags && <span>{item.tags}</span>}
+                          {item.source_url && (
+                            <a href={item.source_url} target="_blank" rel="noreferrer">
+                              {homeText.viewSource}
+                            </a>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {sidePanel === "history" && (
+            <>
+              <div className="es-side-head">
+                <div>
+                  <span>{homeText.historyTitle}</span>
+                  <span className="es-side-sub">
+                    {t(homeText.historyPerPage, { count: HISTORY_PAGE_SIZE })}
+                  </span>
+                </div>
+                <button type="button" className="es-side-close" onClick={() => setSidePanel(null)}>
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="es-side-body home-v2-history-list">
+                {isHistoryLoading ? (
+                  <div className="home-v2-empty">{homeText.loading}</div>
+                ) : rewrites.length === 0 ? (
+                  <div className="home-v2-empty">{homeText.noHistory}</div>
+                ) : (
+                  rewrites.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`home-v2-history-item ${rewriteIdFromQuery === item.id ? "active" : ""}`}
+                      onClick={() => {
+                        const next = new URLSearchParams(searchParams);
+                        next.set("rewrite_id", String(item.id));
+                        setSearchParams(next, { replace: true });
+                        setSelectedHistory(item);
+                      }}
+                    >
+                      <div className="home-v2-history-title">
+                        #{item.id} {summarize(item.source_article)}
+                      </div>
+                      <div className="home-v2-history-meta">
+                        <span>{formatTime(item.created_at, locale)}</span>
+                        <span className={`status-${item.status}`}>
+                          {item.status === "completed"
+                            ? homeText.statusCompleted
+                            : item.status === "running"
+                              ? homeText.statusRunning
+                              : item.status === "failed"
+                                ? homeText.statusFailed
+                                : homeText.statusPending}
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="home-v2-history-pagination">
+                <Pagination
+                  page={historyPage}
+                  total={historyTotal}
+                  limit={HISTORY_PAGE_SIZE}
+                  onPageChange={(nextPage) => setHistoryPage(nextPage)}
+                />
+              </div>
+            </>
+          )}
         </aside>
-      </main>
+      </div>
 
       {showNewStyle && (
         <div className="modal-overlay" onClick={() => setShowNewStyle(false)}>

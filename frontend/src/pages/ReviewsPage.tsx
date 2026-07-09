@@ -4,6 +4,7 @@ import {
   Clipboard,
   Clock3,
   Edit3,
+  ListFilter,
   Loader2,
   RefreshCw,
   Save,
@@ -158,6 +159,7 @@ export const ReviewsPage: React.FC = () => {
   const [isRunningReview, setIsRunningReview] = useState(false);
   const [editMessage, setEditMessage] = useState("");
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(true);
 
   const selectedRewrite = useMemo(
     () => rewrites.find((item) => item.id === selectedRewriteId) || null,
@@ -448,7 +450,26 @@ export const ReviewsPage: React.FC = () => {
     <div className="reviews-v2-page">
       <AppTopNav />
 
-      <main className="reviews-v2-main">
+      <header className="es-pagehead">
+        <div>
+          <p className="es-eyebrow">
+            <b>REVIEW</b>
+            <span>{reviewsText.queueTitle}</span>
+          </p>
+        </div>
+        <div className="es-pagehead-actions">
+          <button
+            type="button"
+            className={`es-panel-toggle${queueOpen ? " active" : ""}`}
+            onClick={() => setQueueOpen((value) => !value)}
+          >
+            <ListFilter size={15} />
+            {reviewsText.queueTitle}
+          </button>
+        </div>
+      </header>
+
+      <main className={`reviews-v2-main${queueOpen ? "" : " queue-collapsed"}`}>
         <aside className="reviews-v2-queue">
           <div className="reviews-v2-panel-head">
             <div>
@@ -504,6 +525,7 @@ export const ReviewsPage: React.FC = () => {
           </div>
         </aside>
 
+        <div className="reviews-v2-canvas">
         <section className="reviews-v2-source">
           <div className="reviews-v2-panel-head">
             <div>
@@ -682,6 +704,7 @@ export const ReviewsPage: React.FC = () => {
             <div className="reviews-v2-empty reviews-v2-paper-empty">{reviewsText.chooseRecord}</div>
           )}
         </section>
+        </div>
       </main>
 
       {showReviewModal && (

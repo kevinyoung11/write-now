@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronRight,
   Eye,
+  ListFilter,
   Loader2,
   Minus,
   Pencil,
@@ -228,6 +229,7 @@ export const StylesPage: React.FC = () => {
   };
   const [styles, setStyles] = useState<WritingStyle[]>([]);
   const [selectedStyleId, setSelectedStyleId] = useState<number | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newStyleName, setNewStyleName] = useState("");
@@ -496,11 +498,29 @@ export const StylesPage: React.FC = () => {
     <div className="styles-v2-page">
       <AppTopNav />
 
-      <main className="styles-v2-main">
+      <header className="es-pagehead">
+        <div>
+          <p className="es-eyebrow">
+            <b>STYLE</b>
+            <span>{stylesText.title}</span>
+          </p>
+        </div>
+        <div className="es-pagehead-actions">
+          <button
+            type="button"
+            className={`es-panel-toggle${sidebarOpen ? " active" : ""}`}
+            onClick={() => setSidebarOpen((value) => !value)}
+          >
+            <ListFilter size={15} />
+            {stylesText.title}
+          </button>
+        </div>
+      </header>
+
+      <main className={`styles-v2-main${sidebarOpen ? "" : " sidebar-collapsed"}`}>
         <aside className="styles-v2-sidebar">
           <div className="styles-v2-sidebar-head">
             <div>
-              <h1>{stylesText.title}</h1>
               <p>{stylesText.subtitle}</p>
             </div>
             <button type="button" className="styles-v2-create-btn" onClick={openCreateModal}>
