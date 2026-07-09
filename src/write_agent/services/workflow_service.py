@@ -4,9 +4,10 @@ LangGraph 工作流编排 - 改写 → 审核 → 用户选择 → 封面生成
 import json
 from typing import TypedDict, Optional
 from langgraph.graph import StateGraph, END
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, select
 
 from write_agent.core import get_settings, get_logger
+from write_agent.core.database import create_app_engine
 from write_agent.models import RewriteRecord, ReviewRecord
 from write_agent.observability import bind_entities, emit_obs_event, obs_scope
 
@@ -14,7 +15,7 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 # 创建数据库引擎
-engine = create_engine(settings.database_url, echo=False)
+engine = create_app_engine(settings.database_url)
 AUTO_REVIEW_MAX_RETRIES = 1
 
 

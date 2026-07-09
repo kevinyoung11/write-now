@@ -11,9 +11,10 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import requests
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, select
 
 from write_agent.core import get_settings
+from write_agent.core.database import create_app_engine
 from write_agent.models.cover_record import CoverRecord
 from write_agent.models.rewrite_record import RewriteRecord
 from write_agent.models.writing_style import WritingStyle
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 # 创建数据库引擎
-engine = create_engine(settings.database_url, echo=False)
+engine = create_app_engine(settings.database_url)
 
 
 class CoverService:

@@ -5,13 +5,14 @@ import json
 import re
 from typing import Optional, Generator
 from urllib.parse import urlparse
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, select
 from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
 
 from write_agent.core import get_settings, get_logger
+from write_agent.core.database import create_app_engine
 from write_agent.models import RewriteRecord, WritingStyle
 from write_agent.observability import bind_entities, emit_obs_event, obs_scope
 from write_agent.services.llm_service import get_llm_service
@@ -21,7 +22,7 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 # 创建数据库引擎
-engine = create_engine(settings.database_url, echo=False)
+engine = create_app_engine(settings.database_url)
 
 
 THINK_OPEN_TAGS = ("<think>", "<thinking>", "<langchain>")

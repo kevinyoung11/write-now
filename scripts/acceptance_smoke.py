@@ -53,11 +53,12 @@ def main() -> int:
     os.environ["DATABASE_URL"] = database_url
     os.environ.setdefault("NO_PROXY", "*")
 
-    from sqlmodel import SQLModel, create_engine
+    from sqlmodel import SQLModel
+    from write_agent.core.database import create_app_engine
     from write_agent.main import app
 
     # Ensure tables exist for the acceptance database.
-    engine = create_engine(database_url, echo=False)
+    engine = create_app_engine(database_url)
     SQLModel.metadata.create_all(engine)
 
     client = TestClient(app)

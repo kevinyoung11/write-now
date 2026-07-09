@@ -18,9 +18,10 @@ from zoneinfo import ZoneInfo
 import requests
 from bs4 import BeautifulSoup
 from sqlalchemy import delete, desc, inspect, text, update
-from sqlmodel import SQLModel, Session, create_engine, select
+from sqlmodel import SQLModel, Session, select
 
 from write_agent.core import get_logger, get_settings
+from write_agent.core.database import create_app_engine
 from write_agent.models import (
     GitHubRepoEnrichmentCache,
     GitHubTrendingItem,
@@ -32,7 +33,7 @@ from write_agent.services.material_service import get_material_service
 
 logger = get_logger(__name__)
 settings = get_settings()
-engine = create_engine(settings.database_url, echo=False)
+engine = create_app_engine(settings.database_url)
 
 
 TRENDING_WEEKLY_URL = "https://github.com/trending?since=weekly"

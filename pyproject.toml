@@ -12,6 +12,7 @@ dependencies = [
     "langchain-openai>=1.1.10",
     "langgraph>=1.0.8",
     "pydantic-settings>=2.13.1",
+    "psycopg2-binary>=2.9.11",
     "sqlalchemy>=2.0.46",
     "sqlmodel>=0.0.34",
     "uvicorn>=0.41.0",

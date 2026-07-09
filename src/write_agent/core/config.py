@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     siliconflow_api_key: str = ""
     siliconflow_base_url: str = "https://api.siliconflow.cn"
     siliconflow_embedding_model: str = "BAAI/bge-m3"
+    rag_vector_backend: str = "auto"  # auto|supabase_pgvector|chroma
+    supabase_vector_table: str = "rag_embeddings"
 
     # 火山引擎/即梦 API 配置
     volcengine_api_key: str = ""
@@ -104,7 +106,7 @@ class Settings(BaseSettings):
     # 数据库配置
     database_url: str = Field(
         default="sqlite:///./data/acceptance_write_agent.db",
-        validation_alias=AliasChoices("DATABASE_URL", "SUPABASE_DB_URL"),
+        validation_alias=AliasChoices("SUPABASE_DB_URL", "DATABASE_URL"),
     )
     chroma_dir: str = "./data/chroma"
 

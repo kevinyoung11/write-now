@@ -4,7 +4,7 @@
 import re
 from typing import Optional
 from urllib.parse import urlparse
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, select
 from datetime import datetime
 from sqlalchemy import or_
 
@@ -12,6 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from write_agent.core import get_settings, get_logger
+from write_agent.core.database import create_app_engine
 from write_agent.models.material import Material
 from write_agent.observability import bind_entities, emit_obs_event, obs_scope
 
@@ -21,7 +22,7 @@ MAX_FETCH_CONTENT_LENGTH = 50000
 TWEET_ID_PATTERN = re.compile(r"/status/(\d+)")
 
 # 创建数据库引擎
-engine = create_engine(settings.database_url, echo=False)
+engine = create_app_engine(settings.database_url)
 
 
 class MaterialService:

@@ -16,9 +16,10 @@ from uuid import uuid4
 
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, select
 
 from write_agent.core import get_logger, get_settings
+from write_agent.core.database import create_app_engine
 from write_agent.models import (
     ReviewRecord,
     RewriteChunk,
@@ -33,7 +34,7 @@ from write_agent.services.rewrite_service import get_rewrite_service
 
 logger = get_logger(__name__)
 settings = get_settings()
-engine = create_engine(settings.database_url, echo=False)
+engine = create_app_engine(settings.database_url)
 
 DEFAULT_HEARTBEAT_SECONDS = 3.0
 DEFAULT_STALE_TIMEOUT_SECONDS = 90.0
