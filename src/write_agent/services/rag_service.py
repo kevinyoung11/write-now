@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 # Chroma 持久化目录
-CHROMA_DIR = "./data/chroma"
+CHROMA_DIR = settings.chroma_dir
 
 
 class SiliconFlowEmbeddings(Embeddings):

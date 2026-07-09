@@ -40,7 +40,8 @@ const ratioOptions = [
   { value: "9:16", label: "9:16" },
   { value: "3:4", label: "3:4" },
 ] as const;
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? "" : "http://localhost:8000");
 const NORMALIZED_API_BASE_URL = API_BASE_URL.replace(/\/+$/, "");
 
 const summarize = (value: string, maxLength = 40) => {

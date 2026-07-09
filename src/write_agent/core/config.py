@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     openai_wire_api: str = "chat_completions"  # chat_completions|responses
     openai_reasoning_effort: str = ""
     openai_disable_response_storage: bool = False
+    enable_schedulers: bool = True
 
     # 硅基流动 Embedding API 配置
     siliconflow_api_key: str = ""
@@ -101,7 +102,11 @@ class Settings(BaseSettings):
     xhs_mcp_detail_retry_backoff_seconds: float = 1.0
 
     # 数据库配置
-    database_url: str = "sqlite:///./data/acceptance_write_agent.db"
+    database_url: str = Field(
+        default="sqlite:///./data/acceptance_write_agent.db",
+        validation_alias=AliasChoices("DATABASE_URL", "SUPABASE_DB_URL"),
+    )
+    chroma_dir: str = "./data/chroma"
 
     # 日志配置
     log_level: str = "INFO"

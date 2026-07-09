@@ -21,7 +21,8 @@ import "./LayoutPage.css";
 type PreviewDevice = "mobile" | "tablet" | "pc";
 type MessageTone = "info" | "success" | "warning" | "error";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? "" : "http://localhost:8000");
 const NORMALIZED_API_BASE_URL = API_BASE_URL.replace(/\/+$/, "");
 const IMAGE_PLACEHOLDER_REGEX = /\[配图建议\|[^\]]+\]/g;
 const HISTORY_LIMIT = 50;

@@ -222,12 +222,11 @@ async def lifespan(app: FastAPI):
     recovered_jobs = workflow_job_service.resume_stale_jobs()
     if recovered_jobs:
         logger.warning("检测并恢复中断工作流任务: %s", recovered_jobs)
-    scheduler_task: asyncio.Task | None = asyncio.create_task(
-        _github_trending_scheduler_loop()
-    )
-    linuxdo_scheduler_task: asyncio.Task | None = asyncio.create_task(
-        _linuxdo_trending_scheduler_loop()
-    )
+    scheduler_task: asyncio.Task | None = None
+    linuxdo_scheduler_task: asyncio.Task | None = None
+    if settings.enable_schedulers:
+        scheduler_task = asyncio.create_task(_github_trending_scheduler_loop())
+        linuxdo_scheduler_task = asyncio.create_task(_linuxdo_trending_scheduler_loop())
     workflow_recovery_task: asyncio.Task | None = asyncio.create_task(
         _workflow_stale_recovery_loop()
     )
