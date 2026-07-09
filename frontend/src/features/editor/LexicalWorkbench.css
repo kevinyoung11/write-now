@@ -1,0 +1,134 @@
+.lexical-workbench {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  background: #fffefa;
+  color: #191712;
+}
+
+.lexical-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid #ded8cc;
+  background: rgba(252, 251, 247, 0.96);
+  padding: 10px 14px;
+  backdrop-filter: blur(10px);
+}
+
+.lexical-toolbar button {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #56514a;
+  cursor: pointer;
+}
+
+.lexical-toolbar button:hover:not(:disabled) {
+  border-color: #d4c9b8;
+  background: #f5efe4;
+  color: #a24e2d;
+}
+
+.lexical-toolbar button:disabled {
+  color: #c4bdb2;
+  cursor: not-allowed;
+}
+
+.lexical-toolbar-divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 5px;
+  background: #ded8cc;
+}
+
+.lexical-editor-shell {
+  position: relative;
+  flex: 1;
+  min-height: 600px;
+  padding: 46px min(7vw, 82px) 72px;
+}
+
+.lexical-content-editable {
+  position: relative;
+  min-height: 520px;
+  outline: none;
+  color: #191712;
+  font-family: "Noto Serif SC", "Songti SC", Georgia, serif;
+  font-size: 19px;
+  line-height: 1.95;
+}
+
+.lexical-placeholder {
+  pointer-events: none;
+  position: absolute;
+  top: 46px;
+  left: min(7vw, 82px);
+  color: #98928a;
+  font-family: "Noto Serif SC", "Songti SC", Georgia, serif;
+  font-size: 19px;
+}
+
+.lexical-paragraph {
+  margin: 0 0 1.1em;
+}
+
+.lexical-heading-one,
+.lexical-heading-two {
+  margin: 1.4em 0 0.65em;
+  color: #191712;
+  font-family: "Noto Serif SC", "Songti SC", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.lexical-heading-one {
+  font-size: 30px;
+  line-height: 1.35;
+}
+
+.lexical-heading-two {
+  font-size: 25px;
+  line-height: 1.4;
+}
+
+.lexical-quote {
+  margin: 1.2em 0;
+  border-left: 3px solid #a24e2d;
+  padding-left: 18px;
+  color: #56514a;
+}
+
+.lexical-text-bold {
+  font-weight: 700;
+}
+
+.lexical-text-italic {
+  font-style: italic;
+}
+
+.lexical-text-strikethrough {
+  text-decoration: line-through;
+}
+
+.lexical-list-ordered,
+.lexical-list-unordered {
+  margin: 0 0 1.1em;
+  padding-left: 28px;
+}
+
+.lexical-list-item {
+  margin: 0.35em 0;
+}
+
+.lexical-nested-list-item {
+  list-style-type: none;
+}

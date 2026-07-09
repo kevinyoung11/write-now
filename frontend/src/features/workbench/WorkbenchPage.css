@@ -1,0 +1,243 @@
+.workbench-page {
+  min-height: 100vh;
+  background: #f3efe6;
+  color: #191712;
+}
+
+.workbench-topbar {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #d9d1c4;
+  background: #fcfbf7;
+  padding: 10px 18px;
+}
+
+.workbench-topbar h1 {
+  margin: 0;
+  font-family: "Noto Serif SC", "Songti SC", Georgia, serif;
+  font-size: 25px;
+  letter-spacing: 0;
+}
+
+.workbench-topbar span {
+  color: #6a635a;
+  font-size: 12px;
+}
+
+.workbench-export-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.workbench-export-actions button,
+.workbench-primary-button,
+.ai-writing-panel-result-head button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #cfc4b3;
+  border-radius: 7px;
+  background: #fffefa;
+  color: #2c2822;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.workbench-export-actions button {
+  padding: 0 12px;
+}
+
+.workbench-export-actions button:hover,
+.ai-writing-panel-result-head button:hover {
+  border-color: #a24e2d;
+  color: #a24e2d;
+}
+
+.workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(250px, 22%) minmax(460px, 1fr) minmax(290px, 25%);
+  min-height: calc(100vh - 65px);
+}
+
+.workbench-left-rail,
+.ai-writing-panel {
+  overflow: auto;
+  border-right: 1px solid #d9d1c4;
+  background: #f8f6f0;
+}
+
+.ai-writing-panel {
+  border-right: 0;
+  border-left: 1px solid #d9d1c4;
+  padding: 16px;
+}
+
+.workbench-side-section {
+  border-bottom: 1px solid #d9d1c4;
+  padding: 14px;
+}
+
+.workbench-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #a24e2d;
+}
+
+.workbench-panel-heading h2 {
+  margin: 0;
+  color: #191712;
+  font-family: "Noto Serif SC", "Songti SC", Georgia, serif;
+  font-size: 16px;
+}
+
+.workbench-side-section textarea {
+  width: 100%;
+  min-height: 110px;
+  margin-top: 10px;
+  box-sizing: border-box;
+  border: 1px solid #d8d0c4;
+  border-radius: 7px;
+  background: #fffefa;
+  color: #2c2822;
+  font: inherit;
+  line-height: 1.65;
+  padding: 10px;
+  resize: vertical;
+}
+
+.workbench-editor-column {
+  min-width: 0;
+  background: #fffefa;
+}
+
+.workbench-editor-meta {
+  display: flex;
+  gap: 14px;
+  border-bottom: 1px solid #ece5d9;
+  background: #fffefa;
+  color: #6a635a;
+  font-size: 12px;
+  padding: 8px 18px;
+}
+
+.ai-writing-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ai-writing-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #56514a;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ai-writing-panel input,
+.ai-writing-panel select {
+  min-height: 34px;
+  border: 1px solid #d8d0c4;
+  border-radius: 7px;
+  background: #fffefa;
+  color: #191712;
+  padding: 0 10px;
+}
+
+.ai-writing-panel-row {
+  display: grid;
+  grid-template-columns: 1fr 90px;
+  gap: 10px;
+}
+
+.ai-writing-panel-toggle {
+  align-items: center;
+  flex-direction: row !important;
+  justify-content: flex-start;
+}
+
+.workbench-primary-button {
+  border-color: #a24e2d;
+  background: #a24e2d;
+  color: #fffefa;
+  padding: 0 12px;
+}
+
+.workbench-primary-button:disabled {
+  border-color: #d6cfc5;
+  background: #e7e0d6;
+  color: #98928a;
+  cursor: not-allowed;
+}
+
+.workbench-spin {
+  animation: workbench-spin 1s linear infinite;
+}
+
+.ai-writing-panel-status,
+.ai-writing-panel-review,
+.ai-writing-panel-result {
+  border: 1px solid #d8d0c4;
+  border-radius: 7px;
+  background: #fffefa;
+  color: #56514a;
+  padding: 10px;
+}
+
+.ai-writing-panel-review {
+  display: grid;
+  gap: 6px;
+}
+
+.ai-writing-panel-review strong {
+  color: #191712;
+}
+
+.ai-writing-panel-review p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.ai-writing-panel-result {
+  min-height: 160px;
+}
+
+.ai-writing-panel-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ai-writing-panel-result pre {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #2c2822;
+  font-family: "Noto Serif SC", "Songti SC", Georgia, serif;
+  line-height: 1.75;
+}
+
+@keyframes workbench-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1040px) {
+  .workbench-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workbench-left-rail,
+  .ai-writing-panel {
+    border: 0;
+    border-bottom: 1px solid #d9d1c4;
+  }
+}
