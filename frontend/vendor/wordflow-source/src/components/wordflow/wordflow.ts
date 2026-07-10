@@ -48,7 +48,7 @@ import '../privacy-dialog/privacy-dialog-simple';
 
 // Assets
 import componentCSS from './wordflow.css?inline';
-import logoIcon from '../../images/yanque-logo.svg?raw';
+import logoIcon from '../../images/logo.svg?raw';
 import defaultPromptsJSON from '../../prompts/default-prompts.json';
 import packageInfoJSON from '../../../package.json';
 import TextGenLocalWorkerInline from '../../llms/web-llm?worker&inline';
@@ -495,7 +495,7 @@ export class WordflowWordflow extends LitElement {
           <div class="center">
             <span class="row">
               <span class="svg-icon">${unsafeHTML(logoIcon)}</span>
-              <span class="name">砚雀 YanQue</span>
+              <span class="name">Write Now</span>
             </span>
           </div>
         </div>
