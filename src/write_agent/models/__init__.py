@@ -18,6 +18,8 @@ from .workflow_job import WorkflowJob
 from .workflow_job_event import WorkflowJobEvent
 from .rewrite_chunk import RewriteChunk
 from .user import User
+from .document import Document
+from .document_version import DocumentVersion
 
 __all__ = [
     "WritingStyle",
@@ -37,4 +39,6 @@ __all__ = [
     "WorkflowJobEvent",
     "RewriteChunk",
     "User",
+    "Document",
+    "DocumentVersion",
 ]
