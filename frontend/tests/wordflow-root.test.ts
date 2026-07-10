@@ -34,6 +34,19 @@ describe("Wordflow root app", () => {
     expect(indexHtml).not.toContain("gtag(");
   });
 
+  it("keeps the root index pointed at the published Wordflow bundle", () => {
+    const rootIndex = readFileSync(resolve(process.cwd(), "index.html"), "utf-8");
+    const publicIndex = readFileSync(
+      resolve(process.cwd(), "public/wordflow/index.html"),
+      "utf-8",
+    );
+    const rootBundle = rootIndex.match(/src="\/wordflow\/(assets\/main-[^"]+\.js)"/)?.[1];
+    const publicBundle = publicIndex.match(/src="\/wordflow\/(assets\/main-[^"]+\.js)"/)?.[1];
+
+    expect(rootBundle).toBe(publicBundle);
+    expect(existsSync(resolve(process.cwd(), "public/wordflow", rootBundle!))).toBe(true);
+  });
+
   it("does not keep the old React/Vite frontend shell", () => {
     expect(existsSync(resolve(process.cwd(), "src"))).toBe(false);
     expect(existsSync(resolve(process.cwd(), "public/vite.svg"))).toBe(false);
