@@ -399,6 +399,27 @@ class AgentRuntimeService:
                             payload={"delta": delta},
                         )
                 elif mode == "updates":
+                    reasoning = _reasoning_delta(chunk)
+                    if reasoning:
+                        trace = self.save_reasoning_trace(
+                            user_id=user_id,
+                            run_id=int(run.id),
+                            thread_id=int(thread.id),
+                            seq=len(final_chunks) + 1,
+                            content=reasoning,
+                            summary=reasoning,
+                            visibility="visible",
+                        )
+                        self.append_event(
+                            user_id=user_id,
+                            run_id=int(run.id),
+                            event_type="reasoning_delta",
+                            payload={
+                                "content": trace.content,
+                                "summary": trace.summary,
+                                "visibility": trace.visibility,
+                            },
+                        )
                     self.append_event(
                         user_id=user_id,
                         run_id=int(run.id),
@@ -610,4 +631,26 @@ def _message_delta(chunk: object) -> str:
             elif isinstance(item, str):
                 parts.append(item)
         return "".join(parts)
+    return ""
+
+
+def _reasoning_delta(chunk: object) -> str:
+    if isinstance(chunk, dict):
+        for key in ("reasoning_delta", "reasoning", "reasoning_trace"):
+            value = chunk.get(key)
+            if isinstance(value, str):
+                return value
+            if isinstance(value, dict):
+                nested = value.get("content") or value.get("summary")
+                if nested:
+                    return str(nested)
+        for value in chunk.values():
+            nested = _reasoning_delta(value)
+            if nested:
+                return nested
+    content = getattr(chunk, "reasoning", None) or getattr(
+        chunk, "reasoning_delta", None
+    )
+    if isinstance(content, str):
+        return content
     return ""

@@ -23,6 +23,8 @@ describe("product runtime wiring", () => {
     expect(actions).toContain("rewrite");
     expect(actions).toContain("oralize");
     expect(actions).toContain("shorten");
+    expect(client).toContain("listDocuments");
+    expect(client).toContain("getDocument");
     expect(client).toContain("createDocumentVersion");
   });
 
@@ -65,6 +67,9 @@ describe("product runtime wiring", () => {
     expect(textEditor).toContain("getCleanDocumentSnapshot");
     expect(textEditor).toContain("lastAiEditContext");
     expect(wordflow).toContain("createDocumentVersion");
+    expect(wordflow).toContain("restoreCurrentDocument");
+    expect(wordflow).toContain("getDocument");
+    expect(wordflow).toContain("listDocuments");
     expect(wordflow).toContain("selected_text");
     expect(wordflow).toContain("result_text");
     expect(wordflow).toContain("base_version_id");

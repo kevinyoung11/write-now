@@ -720,6 +720,11 @@ export class WordflowTextEditor extends LitElement {
     };
   }
 
+  loadDocumentHtml(contentHtml: string) {
+    if (this.editor === null) return;
+    this.editor.commands.setContent(contentHtml || '');
+  }
+
   getCleanDocumentSnapshot(): DocumentSnapshot {
     const snapshot = this.getDocumentSnapshot();
     return this._cleanDiffHtmlSnapshot(snapshot.content_html);

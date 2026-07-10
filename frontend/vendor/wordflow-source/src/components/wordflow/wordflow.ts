@@ -18,6 +18,8 @@ import { config } from '../../config/config';
 import {
   createDocument,
   createDocumentVersion,
+  getDocument,
+  listDocuments,
   type DocumentPayload
 } from '../../product/document-client';
 import { PromptManager } from './prompt-manager';
@@ -434,11 +436,25 @@ export class WordflowWordflow extends LitElement {
   async initializeCurrentDocument() {
     if (!this.textEditorElement || this.currentDocument !== null) return;
     try {
+      if (await this.restoreCurrentDocument()) return;
       const snapshot = this.textEditorElement.getCleanDocumentSnapshot();
       await this.ensureDocument(snapshot.content_html, snapshot.content_text);
     } catch (error) {
       console.error('Failed to initialize document', error);
     }
+  }
+
+  async restoreCurrentDocument() {
+    if (!this.textEditorElement) return false;
+    const documents = await listDocuments();
+    if (documents.length === 0) return false;
+    const document = await getDocument(documents[0].id);
+    this.currentDocument = document;
+    this.textEditorElement.loadDocumentHtml(
+      document.current_version?.content_html ?? ''
+    );
+    localStorage.setItem('current-document-id', String(document.id));
+    return true;
   }
 
   async saveAcceptedAiEdit(

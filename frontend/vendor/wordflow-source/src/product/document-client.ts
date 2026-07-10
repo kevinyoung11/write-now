@@ -20,6 +20,31 @@ export interface DocumentPayload {
   current_version: DocumentVersionPayload;
 }
 
+export interface DocumentListItemPayload {
+  id: number;
+  title: string;
+  status?: string;
+  current_version_id: number;
+  updated_at?: string;
+}
+
+export async function listDocuments(): Promise<DocumentListItemPayload[]> {
+  const response = await fetch(config.urls.documentsEndpoint, {
+    headers: authHeaders(false)
+  });
+  const payload = await parseJsonResponse<{ items: DocumentListItemPayload[] }>(
+    response
+  );
+  return payload.items;
+}
+
+export async function getDocument(documentId: number): Promise<DocumentPayload> {
+  const response = await fetch(`${config.urls.documentsEndpoint}/${documentId}`, {
+    headers: authHeaders(false)
+  });
+  return parseJsonResponse<DocumentPayload>(response);
+}
+
 export async function createDocument(
   title: string,
   contentHtml: string,

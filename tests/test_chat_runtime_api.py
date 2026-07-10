@@ -243,6 +243,50 @@ def test_runtime_chat_run_uses_deepagents_stream(monkeypatch):
     assert event_types[-1] == "run_completed"
 
 
+def test_runtime_chat_run_persists_visible_reasoning(monkeypatch):
+    from write_agent.services.agent_runtime_service import AgentRuntimeService
+    from write_agent.models import AgentReasoningTrace
+    from sqlmodel import Session, select
+
+    class FakeAgent:
+        def stream(self, input_payload, config=None, stream_mode=None):
+            yield ("updates", {"reasoning_delta": "先判断问题"})
+            yield ("messages", (SimpleContent("结论"), {}))
+
+    class SimpleContent:
+        def __init__(self, content):
+            self.content = content
+
+    service = AgentRuntimeService()
+    user_id = f"reasoning-stream-user-{uuid4().hex}"
+    document = _create_document(user_id=user_id)
+    monkeypatch.setattr(service, "_build_deep_agent", lambda: FakeAgent())
+
+    result = service.start_chat_run(
+        user_id=user_id,
+        document_id=int(document["id"]),
+        content="怎么改",
+        selection=None,
+        base_version_id=document["current_version"]["id"],
+    )
+
+    events = _wait_for_run_completed(
+        service=service,
+        user_id=user_id,
+        run_id=int(result["run_id"]),
+    )
+    assert any(event.event_type == "reasoning_delta" for event in events)
+
+    with Session(engine) as session:
+        trace = session.exec(
+            select(AgentReasoningTrace).where(
+                AgentReasoningTrace.run_id == int(result["run_id"])
+            )
+        ).one()
+    assert trace.content == "先判断问题"
+    assert trace.visibility == "visible"
+
+
 def test_chat_run_returns_before_background_stream_finishes(monkeypatch):
     from write_agent.services.agent_runtime_service import AgentRuntimeService
 
