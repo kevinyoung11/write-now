@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("vendored Wordflow assets", () => {
+describe("Wordflow root app", () => {
   it("uses Wordflow as the root document without an iframe shell", () => {
     const indexHtml = readFileSync(resolve(process.cwd(), "index.html"), "utf-8");
 
@@ -23,5 +23,15 @@ describe("vendored Wordflow assets", () => {
     expect(indexHtml).toMatch(/src="\/wordflow\/assets\/main-[^"]+\.js"/);
     expect(indexHtml).not.toContain("googletagmanager.com");
     expect(indexHtml).not.toContain("gtag(");
+  });
+
+  it("does not keep the old React/Vite frontend shell", () => {
+    expect(existsSync(resolve(process.cwd(), "src"))).toBe(false);
+    expect(existsSync(resolve(process.cwd(), "public/vite.svg"))).toBe(false);
+    expect(existsSync(resolve(process.cwd(), "public/yanque-logo.svg"))).toBe(false);
+
+    const readme = readFileSync(resolve(process.cwd(), "README.md"), "utf-8");
+
+    expect(readme).not.toMatch(/React|@vitejs\/plugin-react|YanQue|砚雀|write-agent|write_agent/);
   });
 });
