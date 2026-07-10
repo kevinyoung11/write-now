@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from datetime import datetime
 from collections import defaultdict
 from uuid import uuid4
@@ -346,6 +347,13 @@ class AgentRuntimeService:
 
         thread, run, content, selection, base_version_id, document_text = context
         final_chunks: list[str] = []
+        settings = get_settings()
+        stream_started_at = time.monotonic()
+        stream_budget_seconds = max(
+            float(getattr(settings, "agent_stream_max_seconds", 50.0) or 0.0),
+            0.0,
+        )
+        budget_exhausted = False
         try:
             agent = self._build_deep_agent()
             message = self._build_user_message(
@@ -377,6 +385,13 @@ class AgentRuntimeService:
                             event_type="message_delta",
                             payload={"delta": delta},
                         )
+                        if (
+                            stream_budget_seconds > 0
+                            and time.monotonic() - stream_started_at
+                            >= stream_budget_seconds
+                        ):
+                            budget_exhausted = True
+                            break
                 elif mode == "updates":
                     reasoning = _reasoning_delta(chunk)
                     if reasoning:
@@ -405,8 +420,24 @@ class AgentRuntimeService:
                         event_type="runtime_update",
                         payload={"update": chunk},
                     )
+                    if (
+                        stream_budget_seconds > 0
+                        and time.monotonic() - stream_started_at
+                        >= stream_budget_seconds
+                    ):
+                        budget_exhausted = True
+                        break
 
             if self._is_run_terminal(run_id=int(run.id), user_id=user_id):
+                return
+            if budget_exhausted and not final_chunks:
+                event = self._fail_run_with_event(
+                    run_id=int(run.id),
+                    user_id=user_id,
+                    error_message="Agent stream exceeded request time budget before producing output.",
+                )
+                if event is not None:
+                    yield event
                 return
             final_answer = "".join(final_chunks)
             self.save_message(
@@ -422,6 +453,7 @@ class AgentRuntimeService:
                 user_id=user_id,
                 run_id=int(run.id),
                 final_answer=final_answer,
+                truncated=budget_exhausted,
             ):
                 yield event
         except Exception as error:
@@ -582,7 +614,12 @@ class AgentRuntimeService:
             )
 
     def _complete_run_with_events(
-        self, *, user_id: str, run_id: int, final_answer: str
+        self,
+        *,
+        user_id: str,
+        run_id: int,
+        final_answer: str,
+        truncated: bool = False,
     ) -> list[AgentRunEvent]:
         self.ensure_schema()
         with _RUN_APPEND_LOCKS[run_id]:
@@ -611,7 +648,9 @@ class AgentRuntimeService:
                     run_id=int(run.id),
                     seq=next_seq + 1,
                     event_type="run_completed",
-                    payload_json=_dump_json({"status": "completed"}),
+                    payload_json=_dump_json(
+                        {"status": "completed", "truncated": truncated}
+                    ),
                 )
                 session.add(message_completed)
                 session.add(run_completed)
@@ -693,6 +732,7 @@ class AgentRuntimeService:
             openai_api_key=settings.openai_api_key,
             base_url=base_url or None,
             timeout=settings.openai_timeout_seconds,
+            max_completion_tokens=settings.agent_chat_max_completion_tokens,
             reasoning_effort=settings.openai_reasoning_effort or None,
             store=False if settings.openai_disable_response_storage else None,
             use_responses_api=(settings.openai_wire_api or "").strip().lower()

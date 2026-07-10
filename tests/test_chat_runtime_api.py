@@ -394,6 +394,55 @@ def test_runtime_chat_run_persists_visible_reasoning(monkeypatch):
     assert trace.visibility == "visible"
 
 
+def test_stream_chat_run_completes_partial_answer_when_request_budget_expires(
+    monkeypatch,
+):
+    from types import SimpleNamespace
+    from write_agent.services import agent_runtime_service as runtime_module
+    from write_agent.services.agent_runtime_service import AgentRuntimeService
+
+    class SlowAgent:
+        def stream(self, input_payload, config=None, stream_mode=None):
+            time.sleep(0.02)
+            yield ("messages", (SimpleContent("短答"), {}))
+            yield ("messages", (SimpleContent("不应继续等待"), {}))
+
+    class SimpleContent:
+        def __init__(self, content):
+            self.content = content
+
+    service = AgentRuntimeService()
+    user_id = f"budget-user-{uuid4().hex}"
+    document = _create_document(user_id=user_id)
+    monkeypatch.setattr(service, "_build_deep_agent", lambda: SlowAgent())
+    monkeypatch.setattr(
+        runtime_module,
+        "get_settings",
+        lambda: SimpleNamespace(agent_stream_max_seconds=0.01),
+    )
+
+    result = service.start_chat_run(
+        user_id=user_id,
+        document_id=int(document["id"]),
+        content="一句话",
+        selection=None,
+        base_version_id=document["current_version"]["id"],
+    )
+
+    events = list(
+        service.stream_chat_run(
+            user_id=user_id,
+            run_id=int(result["run_id"]),
+        )
+    )
+
+    assert [event.event_type for event in events][-2:] == [
+        "message_completed",
+        "run_completed",
+    ]
+    assert json.loads(events[-1].payload_json)["truncated"] is True
+
+
 def test_chat_run_start_returns_before_stream_execution(monkeypatch):
     from write_agent.services.agent_runtime_service import AgentRuntimeService
 
