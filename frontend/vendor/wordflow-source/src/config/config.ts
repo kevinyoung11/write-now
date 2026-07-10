@@ -20,6 +20,15 @@ const urls = {
   chatRunEventsEndpoint: '/api/chat/runs'
 };
 
+const supabaseAuth = {
+  url:
+    import.meta.env.VITE_SUPABASE_URL ||
+    'https://ulpxnnfeshmcmoefzrhg.supabase.co',
+  anonKey:
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVscHhubmZlc2htY21vZWZ6cmhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3NjM4MjUsImV4cCI6MjA5NzMzOTgyNX0.90aQ_ZSUPF5ldc6EpBdeZ53ZuJSwtuLBgdITjjcwTX8'
+};
+
 const colors = {
   'red-50': 'hsl(350, 100.0%, 96.08%)',
   'red-100': 'hsl(354, 100.0%, 90.2%)',
@@ -302,5 +311,6 @@ export const config = {
   layout,
   time,
   customColors,
-  urls
+  urls,
+  supabaseAuth
 };
