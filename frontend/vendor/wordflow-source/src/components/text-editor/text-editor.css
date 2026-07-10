@@ -2,7 +2,7 @@
   width: 100%;
   min-height: 100vh;
   padding: 60px 70px;
-  background-color: white;
+  background-color: var(--gray-50);
 
   display: flex;
   box-sizing: border-box;

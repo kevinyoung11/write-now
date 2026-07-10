@@ -1,3 +1,13 @@
+@font-face {
+  font-family: 'Newsreader';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src:
+    url('fonts/newsreader-italic-500.woff2') format('woff2'),
+    url('fonts/newsreader-italic-500.woff') format('woff');
+}
+
 html {
   overflow-x: hidden;
   font-size: 16px;
@@ -24,7 +34,7 @@ body {
   font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont,
     'Microsoft YaHei', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
-  color: hsl(0, 0%, 29%);
+  color: #20201c;
   font-size: 1em;
   font-weight: 400;
   line-height: 1.5;
@@ -37,7 +47,7 @@ body {
 }
 
 a {
-  color: rgb(0, 100, 200);
+  color: hsl(15, 58%, 42%);
   text-decoration: none;
 }
 
@@ -46,7 +56,7 @@ a:hover {
 }
 
 a:visited {
-  color: rgb(0, 80, 160);
+  color: hsl(15, 60%, 34%);
 }
 
 label {
@@ -456,31 +466,32 @@ button:focus {
   --brown-800: hsl(11, 25.81%, 24.31%);
   --brown-900: hsl(8, 27.84%, 19.02%);
 
-  /* Warm "rice paper / inkstone" neutrals — a slight warm-stone bias
-     Neutral scale matches the original Material gray exactly. */
-  --gray-50: hsl(0, 0%, 98.04%);
-  --gray-100: hsl(0, 0%, 96.08%);
-  --gray-200: hsl(0, 0%, 93.33%);
-  --gray-300: hsl(0, 0%, 87.84%);
-  --gray-400: hsl(0, 0%, 74.12%);
-  --gray-500: hsl(0, 0%, 61.96%);
-  --gray-600: hsl(0, 0%, 45.88%);
-  --gray-700: hsl(0, 0%, 38.04%);
-  --gray-800: hsl(0, 0%, 25.88%);
-  --gray-900: hsl(0, 0%, 12.94%);
+  /* Neutral scale anchored to the brand's Ink (#20201C) / Paper (#F7F3EC) —
+     gray-50 is Paper exactly, gray-900 is Ink exactly, same lightness
+     steps as the original Material gray in between. */
+  --gray-50: hsl(38, 41%, 94.7%);
+  --gray-100: hsl(37, 30%, 92.5%);
+  --gray-200: hsl(36, 22%, 89.5%);
+  --gray-300: hsl(35, 16%, 84%);
+  --gray-400: hsl(33, 10%, 71%);
+  --gray-500: hsl(30, 8%, 59%);
+  --gray-600: hsl(26, 8%, 44%);
+  --gray-700: hsl(22, 8%, 36%);
+  --gray-800: hsl(18, 7%, 24%);
+  --gray-900: hsl(60, 6.7%, 11.8%);
 
-  /* Accent — Wordflow's original Material blue, kept as a separate token
-     name from --blue-* so it reads as "brand" wherever it's used. */
-  --accent-50: hsl(205, 86.67%, 94.12%);
-  --accent-100: hsl(207, 88.89%, 85.88%);
-  --accent-200: hsl(206, 89.74%, 77.06%);
-  --accent-300: hsl(206, 89.02%, 67.84%);
-  --accent-400: hsl(206, 89.95%, 60.98%);
-  --accent-500: hsl(206, 89.74%, 54.12%);
-  --accent-600: hsl(208, 79.28%, 50.78%);
-  --accent-700: hsl(209, 78.72%, 46.08%);
-  --accent-800: hsl(211, 80.28%, 41.76%);
-  --accent-900: hsl(216, 85.06%, 34.12%);
+  /* Accent — brand Terracotta (#C65D3B), used sparingly per the logo kit's
+     guidance: primary actions and active indicators, not large fills. */
+  --accent-50: hsl(15, 45%, 95.5%);
+  --accent-100: hsl(15, 48%, 90.5%);
+  --accent-200: hsl(15, 50%, 82.5%);
+  --accent-300: hsl(15, 52%, 72%);
+  --accent-400: hsl(15, 54%, 61%);
+  --accent-500: hsl(15, 55%, 55.5%);
+  --accent-600: hsl(14.7, 54.9%, 50.4%);
+  --accent-700: hsl(15, 58%, 42%);
+  --accent-800: hsl(15, 60%, 34%);
+  --accent-900: hsl(15, 62%, 24%);
 
   --blue-gray-50: hsl(204, 15.15%, 93.53%);
   --blue-gray-100: hsl(198, 15.66%, 83.73%);
