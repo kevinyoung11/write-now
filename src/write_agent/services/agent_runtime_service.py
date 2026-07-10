@@ -19,6 +19,7 @@ from write_agent.models import (
     AgentRunEvent,
     AgentThread,
 )
+from write_agent.services.document_service import document_service
 
 _RUN_APPEND_LOCKS: defaultdict[int, threading.Lock] = defaultdict(threading.Lock)
 
@@ -246,6 +247,7 @@ class AgentRuntimeService:
         return self._mark_run(
             run_id=run_id,
             user_id=user_id,
+            allow_terminal=False,
             status="cancelled",
             current_stage="cancelled",
         )
@@ -256,6 +258,7 @@ class AgentRuntimeService:
         run_id: int,
         user_id: str | None = None,
         _internal: bool = False,
+        allow_terminal: bool = True,
         status: str,
         current_stage: str,
         error_message: str | None = None,
@@ -265,6 +268,8 @@ class AgentRuntimeService:
             raise ValueError("User scope is required")
         with Session(engine, expire_on_commit=False) as session:
             run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
+            if not allow_terminal and run.status in TERMINAL_RUN_STATUSES:
+                raise ValueError("Run is already terminal")
             run.status = status
             run.current_stage = current_stage
             run.error_message = error_message
@@ -291,10 +296,22 @@ class AgentRuntimeService:
         selection: dict | None,
         base_version_id: int | None,
     ) -> dict:
+        document, current_version = document_service.get_document(
+            user_id=user_id,
+            document_id=document_id,
+        )
+        if base_version_id is not None:
+            versions = document_service.list_versions(
+                user_id=user_id,
+                document_id=document_id,
+            )
+            if all(version.id != base_version_id for version in versions):
+                raise ValueError("Version not found")
+        base_version_id = base_version_id or current_version.id
         thread = self.get_or_create_thread(
             user_id=user_id,
             document_id=document_id,
-            title="Document chat",
+            title=document.title or "Document chat",
         )
         run = self.create_run(
             user_id=user_id,
@@ -324,15 +341,21 @@ class AgentRuntimeService:
             event_type="user_message_saved",
             payload={"content": content},
         )
-        self._run_chat_stream(
-            user_id=user_id,
-            document_id=document_id,
-            thread=thread,
-            run=run,
-            content=content,
-            selection=selection or {},
-            base_version_id=base_version_id,
+        worker = threading.Thread(
+            target=self._run_chat_stream,
+            kwargs={
+                "user_id": user_id,
+                "document_id": document_id,
+                "thread": thread,
+                "run": run,
+                "content": content,
+                "selection": selection or {},
+                "base_version_id": base_version_id,
+                "document_text": current_version.content_text,
+            },
+            daemon=True,
         )
+        worker.start()
         return {"run_id": run.id, "thread_id": thread.id, "status": "running"}
 
     def _run_chat_stream(
@@ -345,6 +368,7 @@ class AgentRuntimeService:
         content: str,
         selection: dict,
         base_version_id: int | None,
+        document_text: str,
     ) -> None:
         final_chunks: list[str] = []
         try:
@@ -354,6 +378,7 @@ class AgentRuntimeService:
                 selection=selection,
                 document_id=document_id,
                 base_version_id=base_version_id,
+                document_text=document_text,
             )
             config = {
                 "configurable": {
@@ -432,6 +457,10 @@ class AgentRuntimeService:
             openai_api_key=settings.openai_api_key,
             base_url=base_url or None,
             timeout=settings.openai_timeout_seconds,
+            reasoning_effort=settings.openai_reasoning_effort or None,
+            store=False if settings.openai_disable_response_storage else None,
+            use_responses_api=(settings.openai_wire_api or "").strip().lower()
+            == "responses",
         )
         return create_deep_agent(
             model=model,
@@ -450,6 +479,7 @@ class AgentRuntimeService:
         selection: dict,
         document_id: int,
         base_version_id: int | None,
+        document_text: str,
     ) -> str:
         selection_text = str(selection.get("text") or "")
         context_before = str(selection.get("context_before") or "")
@@ -460,11 +490,14 @@ class AgentRuntimeService:
             f"selection_text:\n{selection_text}\n\n"
             f"context_before:\n{context_before}\n\n"
             f"context_after:\n{context_after}\n\n"
+            f"document_text:\n{document_text}\n\n"
             f"user_request:\n{content}"
         )
 
 
 agent_runtime_service = AgentRuntimeService()
+
+TERMINAL_RUN_STATUSES = {"completed", "failed", "cancelled"}
 
 
 def _dump_json(value: object) -> str:

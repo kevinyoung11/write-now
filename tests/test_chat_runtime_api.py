@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import json
+import time
 from datetime import datetime
 from uuid import uuid4
 
@@ -163,6 +164,7 @@ def test_chat_events_endpoint_replays_scoped_sse(monkeypatch):
         return [
             SimpleNamespace(seq=1, event_type="run_started", payload_json='{"ok": true}'),
             SimpleNamespace(seq=2, event_type="message_delta", payload_json='{"delta": "Hi"}'),
+            SimpleNamespace(seq=3, event_type="run_completed", payload_json='{"status": "completed"}'),
         ]
 
     monkeypatch.setattr(chat_api.agent_runtime_service, "list_events", fake_list_events)
@@ -178,6 +180,25 @@ def test_chat_events_endpoint_replays_scoped_sse(monkeypatch):
     assert captured == {"user_id": user_id, "run_id": 99, "from_seq": 0}
     assert "event: run_started" in response.text
     assert '"delta": "Hi"' in response.text
+
+
+def test_chat_message_endpoint_rejects_unowned_document():
+    owner_id = f"chat-owner-{uuid4().hex}"
+    attacker_id = f"chat-attacker-{uuid4().hex}"
+    document = _create_document(user_id=owner_id)
+
+    client = TestClient(app)
+    response = client.post(
+        f"/api/documents/{document['id']}/chat/messages",
+        headers={"X-Dev-User-Id": attacker_id},
+        json={
+            "content": "这段怎么改？",
+            "base_version_id": document["current_version"]["id"],
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Document not found"
 
 
 def test_runtime_chat_run_uses_deepagents_stream(monkeypatch):
@@ -200,22 +221,155 @@ def test_runtime_chat_run_uses_deepagents_stream(monkeypatch):
 
     service = AgentRuntimeService()
     user_id = f"deepagent-user-{uuid4().hex}"
+    document = _create_document(user_id=user_id)
     monkeypatch.setattr(service, "_build_deep_agent", lambda: FakeAgent())
 
     result = service.start_chat_run(
         user_id=user_id,
-        document_id=3001,
+        document_id=int(document["id"]),
         content="帮我润色",
         selection={"text": "原文"},
-        base_version_id=None,
+        base_version_id=document["current_version"]["id"],
     )
 
-    events = service.list_events(
+    events = _wait_for_run_completed(
+        service=service,
         user_id=user_id,
         run_id=int(result["run_id"]),
-        from_seq=0,
     )
     event_types = [event.event_type for event in events]
     assert "message_delta" in event_types
     assert "runtime_update" in event_types
     assert event_types[-1] == "run_completed"
+
+
+def test_chat_run_returns_before_background_stream_finishes(monkeypatch):
+    from write_agent.services.agent_runtime_service import AgentRuntimeService
+
+    class SlowAgent:
+        def stream(self, input_payload, config=None, stream_mode=None):
+            time.sleep(0.25)
+            yield ("messages", (SimpleContent("late"), {}))
+
+    class SimpleContent:
+        def __init__(self, content):
+            self.content = content
+
+    service = AgentRuntimeService()
+    user_id = f"live-stream-user-{uuid4().hex}"
+    document = _create_document(user_id=user_id)
+    monkeypatch.setattr(service, "_build_deep_agent", lambda: SlowAgent())
+
+    started = time.monotonic()
+    result = service.start_chat_run(
+        user_id=user_id,
+        document_id=int(document["id"]),
+        content="开始",
+        selection=None,
+        base_version_id=document["current_version"]["id"],
+    )
+    elapsed = time.monotonic() - started
+
+    assert result["status"] == "running"
+    assert elapsed < 0.2
+
+    deadline = time.monotonic() + 1.5
+    while time.monotonic() < deadline:
+        events = service.list_events(
+            user_id=user_id,
+            run_id=int(result["run_id"]),
+            from_seq=0,
+        )
+        if any(event.event_type == "run_completed" for event in events):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("expected background run to complete")
+
+
+def test_chat_run_rejects_unowned_document_and_version(monkeypatch):
+    from write_agent.services.agent_runtime_service import AgentRuntimeService
+
+    owner_id = f"doc-owner-{uuid4().hex}"
+    attacker_id = f"doc-attacker-{uuid4().hex}"
+    document = _create_document(user_id=owner_id)
+    service = AgentRuntimeService()
+
+    try:
+        service.start_chat_run(
+            user_id=attacker_id,
+            document_id=int(document["id"]),
+            content="偷看",
+            selection=None,
+            base_version_id=document["current_version"]["id"],
+        )
+    except ValueError as error:
+        assert str(error) == "Document not found"
+    else:
+        raise AssertionError("expected ValueError")
+
+    other = _create_document(user_id=owner_id)
+    try:
+        service.start_chat_run(
+            user_id=owner_id,
+            document_id=int(document["id"]),
+            content="错版本",
+            selection=None,
+            base_version_id=other["current_version"]["id"],
+        )
+    except ValueError as error:
+        assert str(error) == "Version not found"
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_cancel_does_not_overwrite_completed_run():
+    from write_agent.services.agent_runtime_service import AgentRuntimeService
+
+    service = AgentRuntimeService()
+    user_id = f"cancel-user-{uuid4().hex}"
+    thread = service.get_or_create_thread(
+        user_id=user_id,
+        document_id=4001,
+        title="Cancel Test",
+    )
+    run = service.create_run(
+        user_id=user_id,
+        document_id=4001,
+        thread_id=int(thread.id),
+        run_type="chat",
+        input_version_id=None,
+    )
+    service.mark_run_completed(user_id=user_id, run_id=int(run.id))
+
+    try:
+        service.mark_run_cancelled(user_id=user_id, run_id=int(run.id))
+    except ValueError as error:
+        assert str(error) == "Run is already terminal"
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def _create_document(*, user_id: str) -> dict:
+    client = TestClient(app)
+    response = client.post(
+        "/api/documents",
+        headers={"X-Dev-User-Id": user_id},
+        json={
+            "title": "Chat document",
+            "content_html": "<p>正文</p>",
+            "content_text": "正文",
+        },
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def _wait_for_run_completed(service, *, user_id: str, run_id: int):
+    deadline = time.monotonic() + 1.5
+    while time.monotonic() < deadline:
+        events = service.list_events(user_id=user_id, run_id=run_id, from_seq=0)
+        if events and events[-1].event_type == "run_completed":
+            return events
+        time.sleep(0.05)
+    raise AssertionError("expected run_completed event")
