@@ -20,6 +20,11 @@ from .rewrite_chunk import RewriteChunk
 from .user import User
 from .document import Document
 from .document_version import DocumentVersion
+from .agent_thread import AgentThread
+from .agent_message import AgentMessage
+from .agent_run import AgentRun
+from .agent_run_event import AgentRunEvent
+from .agent_reasoning_trace import AgentReasoningTrace
 
 __all__ = [
     "WritingStyle",
@@ -41,4 +46,9 @@ __all__ = [
     "User",
     "Document",
     "DocumentVersion",
+    "AgentThread",
+    "AgentMessage",
+    "AgentRun",
+    "AgentRunEvent",
+    "AgentReasoningTrace",
 ]
