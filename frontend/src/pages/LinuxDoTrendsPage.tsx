@@ -337,7 +337,7 @@ export const LinuxDoTrendsPage: React.FC = () => {
         return;
       }
       setFeedback({ kind: "success", message: linuxdoText.rewriteSuccess });
-      navigate("/", {
+      navigate("/write-agent", {
         state: {
           prefillSource,
           sourceType: "linuxdo-trend-item",

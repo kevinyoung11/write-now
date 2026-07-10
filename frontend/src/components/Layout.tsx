@@ -11,7 +11,7 @@ import {
 import "./Layout.css";
 
 const navItems = [
-  { to: "/", icon: PenTool, label: "写作改写" },
+  { to: "/write-agent", icon: PenTool, label: "写作改写" },
   { to: "/styles", icon: Palette, label: "风格管理" },
   { to: "/materials", icon: FolderOpen, label: "素材库" },
   { to: "/reviews", icon: CheckSquare, label: "审核" },

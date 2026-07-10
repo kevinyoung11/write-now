@@ -1,4 +1,5 @@
 export { HomePage } from './HomePage';
+export { WordflowPage } from './WordflowPage';
 export { StylesPage } from './StylesPage';
 export { MaterialsPage } from './MaterialsPage';
 export { ReviewsPage } from './ReviewsPage';

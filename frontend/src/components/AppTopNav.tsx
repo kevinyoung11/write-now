@@ -81,7 +81,7 @@ export const AppTopNav: React.FC = () => {
   };
 
   const NAV_ITEMS = [
-    { to: "/", label: text.nav.links.rewrite },
+    { to: "/write-agent", label: text.nav.links.rewrite },
     { to: "/styles", label: text.nav.links.styles },
     { to: "/materials", label: text.nav.links.materials },
     { to: "/reviews", label: text.nav.links.reviews },

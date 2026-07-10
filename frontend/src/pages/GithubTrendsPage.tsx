@@ -427,7 +427,7 @@ export const GithubTrendsPage: React.FC = () => {
         });
       }
 
-      navigate("/", {
+      navigate("/write-agent", {
         state: {
           prefillSource,
           sourceType: trendScope === "daily" ? "github-trend-daily" : "github-trend-weekly",
@@ -448,7 +448,7 @@ export const GithubTrendsPage: React.FC = () => {
       return;
     }
     const prefillSource = markdownForDigest(trendScope, effectivePeriodKey, sortedItems);
-    navigate("/", {
+    navigate("/write-agent", {
       state: {
         prefillSource,
         sourceType: trendScope === "daily" ? "github-trend-daily" : "github-trend-weekly",

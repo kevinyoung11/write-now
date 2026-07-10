@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import {
   HomePage,
+  WordflowPage,
   StylesPage,
   MaterialsPage,
   ReviewsPage,
@@ -10,35 +11,40 @@ import {
   LinuxDoTrendsPage,
   HotTopicsPage,
 } from './pages';
-import { WorkbenchPage } from './features/workbench/WorkbenchPage';
 
 const LayoutPage = lazy(() =>
   import('./pages/LayoutPage').then((mod) => ({ default: mod.LayoutPage })),
 );
 
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<WordflowPage />} />
+      <Route path="/write-agent" element={<HomePage />} />
+      <Route path="/styles" element={<StylesPage />} />
+      <Route path="/materials" element={<MaterialsPage />} />
+      <Route path="/reviews" element={<ReviewsPage />} />
+      <Route path="/covers" element={<CoversPage />} />
+      <Route path="/github-trends" element={<GithubTrendsPage />} />
+      <Route path="/linuxdo-trends" element={<LinuxDoTrendsPage />} />
+      <Route path="/hot-topics" element={<HotTopicsPage />} />
+      <Route path="/xhs-trends" element={<HotTopicsPage />} />
+      <Route
+        path="/layout"
+        element={
+          <Suspense fallback={<div style={{ padding: 24 }}>Loading layout...</div>}>
+            <LayoutPage />
+          </Suspense>
+        }
+      />
+    </Routes>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<WorkbenchPage />} />
-        <Route path="/rewrite" element={<HomePage />} />
-        <Route path="/styles" element={<StylesPage />} />
-        <Route path="/materials" element={<MaterialsPage />} />
-        <Route path="/reviews" element={<ReviewsPage />} />
-        <Route path="/covers" element={<CoversPage />} />
-        <Route path="/github-trends" element={<GithubTrendsPage />} />
-        <Route path="/linuxdo-trends" element={<LinuxDoTrendsPage />} />
-        <Route path="/hot-topics" element={<HotTopicsPage />} />
-        <Route path="/xhs-trends" element={<HotTopicsPage />} />
-        <Route
-          path="/layout"
-          element={
-            <Suspense fallback={<div style={{ padding: 24 }}>Loading layout...</div>}>
-              <LayoutPage />
-            </Suspense>
-          }
-        />
-      </Routes>
+      <AppRoutes />
     </BrowserRouter>
   );
 }
