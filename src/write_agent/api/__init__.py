@@ -14,6 +14,7 @@ from .xhs_trends import router as xhs_trends_router
 from .observability import router as observability_router
 from .wordflow import router as wordflow_router
 from .documents import router as documents_router
+from .chat import router as chat_router
 
 # 创建主路由
 api_router = APIRouter(prefix="/api")
@@ -29,6 +30,7 @@ api_router.include_router(xhs_trends_router)
 api_router.include_router(observability_router)
 api_router.include_router(wordflow_router)
 api_router.include_router(documents_router)
+api_router.include_router(chat_router)
 # cover_styles_router 需要放在 covers_router 之前，避免 /covers/styles 被 /covers/{cover_id} 匹配
 api_router.include_router(cover_styles_router)
 api_router.include_router(covers_router)

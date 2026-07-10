@@ -7,8 +7,10 @@ from collections import defaultdict
 from uuid import uuid4
 
 from fastapi.encoders import jsonable_encoder
+from langchain_openai import ChatOpenAI
 from sqlmodel import SQLModel, Session, select
 
+from write_agent.core import get_settings
 from write_agent.core.database import engine
 from write_agent.models import (
     AgentMessage,
@@ -57,6 +59,14 @@ class AgentRuntimeService:
             session.add(thread)
             session.commit()
             session.refresh(thread)
+            return thread
+
+    def get_thread(self, *, user_id: str, thread_id: int) -> AgentThread:
+        self.ensure_schema()
+        with Session(engine, expire_on_commit=False) as session:
+            thread = session.get(AgentThread, thread_id)
+            if thread is None or thread.user_id != user_id:
+                raise ValueError("Thread not found")
             return thread
 
     def create_run(
@@ -272,9 +282,208 @@ class AgentRuntimeService:
             raise ValueError("Run not found")
         return run
 
+    def start_chat_run(
+        self,
+        *,
+        user_id: str,
+        document_id: int,
+        content: str,
+        selection: dict | None,
+        base_version_id: int | None,
+    ) -> dict:
+        thread = self.get_or_create_thread(
+            user_id=user_id,
+            document_id=document_id,
+            title="Document chat",
+        )
+        run = self.create_run(
+            user_id=user_id,
+            document_id=document_id,
+            thread_id=int(thread.id),
+            run_type="chat",
+            input_version_id=base_version_id,
+        )
+        self.save_message(
+            user_id=user_id,
+            thread_id=int(thread.id),
+            run_id=int(run.id),
+            role="user",
+            content=content,
+            metadata={"selection": selection or {}},
+            document_version_id=base_version_id,
+        )
+        self.append_event(
+            user_id=user_id,
+            run_id=int(run.id),
+            event_type="run_started",
+            payload={"run_id": run.id, "thread_id": thread.id, "status": "running"},
+        )
+        self.append_event(
+            user_id=user_id,
+            run_id=int(run.id),
+            event_type="user_message_saved",
+            payload={"content": content},
+        )
+        self._run_chat_stream(
+            user_id=user_id,
+            document_id=document_id,
+            thread=thread,
+            run=run,
+            content=content,
+            selection=selection or {},
+            base_version_id=base_version_id,
+        )
+        return {"run_id": run.id, "thread_id": thread.id, "status": "running"}
+
+    def _run_chat_stream(
+        self,
+        *,
+        user_id: str,
+        document_id: int,
+        thread: AgentThread,
+        run: AgentRun,
+        content: str,
+        selection: dict,
+        base_version_id: int | None,
+    ) -> None:
+        final_chunks: list[str] = []
+        try:
+            agent = self._build_deep_agent()
+            message = self._build_user_message(
+                content=content,
+                selection=selection,
+                document_id=document_id,
+                base_version_id=base_version_id,
+            )
+            config = {
+                "configurable": {
+                    "thread_id": thread.langgraph_thread_id,
+                }
+            }
+            for mode, chunk in agent.stream(
+                {"messages": [{"role": "user", "content": message}]},
+                config=config,
+                stream_mode=["messages", "updates"],
+            ):
+                if mode == "messages":
+                    delta = _message_delta(chunk)
+                    if delta:
+                        final_chunks.append(delta)
+                        self.append_event(
+                            user_id=user_id,
+                            run_id=int(run.id),
+                            event_type="message_delta",
+                            payload={"delta": delta},
+                        )
+                elif mode == "updates":
+                    self.append_event(
+                        user_id=user_id,
+                        run_id=int(run.id),
+                        event_type="runtime_update",
+                        payload={"update": chunk},
+                    )
+
+            final_answer = "".join(final_chunks)
+            self.save_message(
+                user_id=user_id,
+                thread_id=int(thread.id),
+                run_id=int(run.id),
+                role="assistant",
+                content=final_answer,
+                metadata={},
+                document_version_id=base_version_id,
+            )
+            self.append_event(
+                user_id=user_id,
+                run_id=int(run.id),
+                event_type="message_completed",
+                payload={"content": final_answer},
+            )
+            self.append_event(
+                user_id=user_id,
+                run_id=int(run.id),
+                event_type="run_completed",
+                payload={"status": "completed"},
+            )
+            self.mark_run_completed(run_id=int(run.id), user_id=user_id)
+        except Exception as error:
+            self.append_event(
+                user_id=user_id,
+                run_id=int(run.id),
+                event_type="run_failed",
+                payload={"error": str(error)},
+            )
+            self.mark_run_failed(
+                run_id=int(run.id),
+                user_id=user_id,
+                error_message=str(error),
+            )
+            raise
+
+    def _build_deep_agent(self):
+        from deepagents import create_deep_agent
+
+        settings = get_settings()
+        base_url = settings.openai_base_url.strip().rstrip("/")
+        if base_url and not base_url.endswith("/v1"):
+            base_url = f"{base_url}/v1"
+        model = ChatOpenAI(
+            model=settings.openai_model,
+            openai_api_key=settings.openai_api_key,
+            base_url=base_url or None,
+            timeout=settings.openai_timeout_seconds,
+        )
+        return create_deep_agent(
+            model=model,
+            tools=[],
+            system_prompt=(
+                "你是一个视频脚本写作工作台里的编辑型 AI。"
+                "优先帮助用户把文本写深、写清楚，围绕选区和全文上下文给出可执行修改。"
+                "不要编造资料；如果缺少资料，直接说明需要补充什么。"
+            ),
+        )
+
+    def _build_user_message(
+        self,
+        *,
+        content: str,
+        selection: dict,
+        document_id: int,
+        base_version_id: int | None,
+    ) -> str:
+        selection_text = str(selection.get("text") or "")
+        context_before = str(selection.get("context_before") or "")
+        context_after = str(selection.get("context_after") or "")
+        return (
+            f"document_id: {document_id}\n"
+            f"base_version_id: {base_version_id or ''}\n"
+            f"selection_text:\n{selection_text}\n\n"
+            f"context_before:\n{context_before}\n\n"
+            f"context_after:\n{context_after}\n\n"
+            f"user_request:\n{content}"
+        )
+
 
 agent_runtime_service = AgentRuntimeService()
 
 
 def _dump_json(value: object) -> str:
     return json.dumps(jsonable_encoder(value), ensure_ascii=False)
+
+
+def _message_delta(chunk: object) -> str:
+    message = chunk[0] if isinstance(chunk, tuple) and chunk else chunk
+    content = getattr(message, "content", message)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get("text") or item.get("content")
+                if text:
+                    parts.append(str(text))
+            elif isinstance(item, str):
+                parts.append(item)
+        return "".join(parts)
+    return ""
