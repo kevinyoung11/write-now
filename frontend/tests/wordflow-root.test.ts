@@ -63,9 +63,14 @@ describe("Wordflow root app", () => {
     expect(gptSource).toContain("fetch(textGenEndpoint");
     expect(configSource).toContain("/api/wordflow/text-gen");
     expect(configSource).toContain("/api/wordflow/records");
+    expect(configSource).toContain("/api/documents");
+    expect(configSource).toContain("/api/chat/runs");
     expect(authSource).toContain("BACKEND_GPT_API_KEY");
     expect(bundle.includes("/api/wordflow/text-gen")).toBe(true);
     expect(bundle.includes("/api/wordflow/records")).toBe(true);
+    expect(bundle.includes("/api/documents")).toBe(true);
+    expect(bundle.includes("/api/chat/runs")).toBe(true);
+    expect(bundle.includes("wordflow-agent-chat")).toBe(true);
     expect(bundle.includes("backend-managed")).toBe(true);
     expect(bundle.includes("https://api.openai.com/v1/responses")).toBe(false);
     expect(bundle.includes("https://generativelanguage.googleapis.com")).toBe(false);
