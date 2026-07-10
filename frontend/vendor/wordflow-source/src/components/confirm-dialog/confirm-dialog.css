@@ -103,18 +103,18 @@
       background-color: var(--gray-400);
     }
 
-    /* &.cancel-button {
+    &.confirm-button {
       color: white;
-      background-color: $blue-500;
+      background-color: var(--accent-600);
 
       &:hover {
-        background-color: $blue-600;
+        background-color: color-mix(in lab, var(--accent-600), white 7%);
       }
 
       &:active {
-        background-color: $blue-700;
+        background-color: var(--accent-700);
       }
-    } */
+    }
   }
 
   & a {

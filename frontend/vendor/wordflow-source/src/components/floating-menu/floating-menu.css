@@ -97,7 +97,8 @@ button.tool-button {
 
   &:hover {
     .svg-icon {
-      box-shadow: 0 0 5px hsla(0, 0%, 0%, 0.15);
+      border-color: var(--accent-300);
+      box-shadow: 0 0 6px hsla(6, 76%, 43%, 0.22);
       transform: scale(1.05);
     }
   }
@@ -105,7 +106,8 @@ button.tool-button {
   &:active,
   &.active {
     .svg-icon {
-      box-shadow: 0 0 5px hsla(0, 0%, 0%, 0.15);
+      border-color: var(--accent-400);
+      box-shadow: 0 0 6px hsla(6, 76%, 43%, 0.25);
       transform: scale(0.99);
     }
   }

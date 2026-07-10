@@ -1,7 +1,5 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
-import dts from 'vite-plugin-dts';
-import { hmrPlugin, presets } from 'vite-plugin-web-components-hmr';
 
 export default defineConfig(({ command, mode }) => {
   if (command === 'serve') {

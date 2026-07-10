@@ -168,33 +168,18 @@
     flex-flow: row;
     align-items: center;
     font-size: var(--font-u3);
-    gap: 3px;
+    gap: 7px;
 
     .svg-icon {
-      opacity: 0.7;
-      filter: grayscale(1);
+      color: var(--accent-600);
       -webkit-transform: translateZ(0);
-
-      transition:
-        filter 100ms,
-        opacity 100ms;
     }
 
     .name {
-      color: var(--gray-500);
+      color: var(--gray-800);
       font-weight: 600;
-      transition: color 100ms;
-    }
-
-    &:hover {
-      .svg-icon {
-        opacity: 1;
-        filter: grayscale(0);
-      }
-
-      .name {
-        color: #0c336a;
-      }
+      font-family: 'Songti SC', 'STSong', 'Noto Serif SC', Georgia, serif;
+      letter-spacing: 0.02em;
     }
   }
 }

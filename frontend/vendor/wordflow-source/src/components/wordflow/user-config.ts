@@ -16,7 +16,7 @@ export enum SupportedRemoteModel {
   'gpt-5.4-nano' = 'GPT 5.4 Nano',
   'gpt-5-mini' = 'GPT 5 Mini',
   'gpt-5-nano' = 'GPT 5 Nano',
-  'gpt-5-nano-free' = 'GPT 5 Nano (free)',
+  'gpt-5-nano-free' = 'GPT (Default)',
   'gpt-5' = 'GPT 5',
   'gpt-4.1' = 'GPT 4.1',
   'gemini-pro' = 'Gemini Pro'

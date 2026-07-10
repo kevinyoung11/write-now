@@ -72,7 +72,7 @@ export class RemotePromptManager {
    * Get a list of the most popular tags.
    */
   async getPopularTags() {
-    const url = new URL(ENDPOINT);
+    const url = new URL(ENDPOINT, window.location.origin);
     url.searchParams.append('popularTags', 'true');
 
     const requestOptions: RequestInit = {
@@ -93,7 +93,7 @@ export class RemotePromptManager {
    * @param orderMode Prompt query order
    */
   async getPromptsByTag(tag: string, orderMode: 'new' | 'popular') {
-    const url = new URL(ENDPOINT);
+    const url = new URL(ENDPOINT, window.location.origin);
 
     url.searchParams.append('tag', tag);
 
@@ -181,7 +181,7 @@ export class RemotePromptManager {
    * @param prompt Local prompt
    */
   async sharePrompt(prompt: PromptDataLocal) {
-    const url = new URL(ENDPOINT);
+    const url = new URL(ENDPOINT, window.location.origin);
     url.searchParams.append('type', 'prompt');
 
     const promptBody = { ...prompt } as PromptPOSTBody;
@@ -211,7 +211,7 @@ export class RemotePromptManager {
    * @param promptID Remote prompt ID
    */
   async getPrompt(promptID: string) {
-    const url = new URL(ENDPOINT);
+    const url = new URL(ENDPOINT, window.location.origin);
     url.searchParams.append('getPrompt', promptID);
 
     const requestOptions: RequestInit = {
