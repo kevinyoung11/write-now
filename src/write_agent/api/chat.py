@@ -111,10 +111,4 @@ async def cancel_chat_run(run_id: int, user: CurrentUserDep):
         if str(error) == "Run is already terminal":
             raise HTTPException(status_code=409, detail=str(error)) from error
         raise HTTPException(status_code=404, detail=str(error)) from error
-    agent_runtime_service.append_event(
-        user_id=user.supabase_user_id,
-        run_id=run_id,
-        event_type="run_cancelled",
-        payload={"status": "cancelled"},
-    )
     return {"run_id": run.id, "status": run.status}

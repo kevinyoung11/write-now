@@ -375,12 +375,6 @@ def test_cancelled_live_run_does_not_complete(monkeypatch):
     )
 
     service.mark_run_cancelled(user_id=user_id, run_id=int(result["run_id"]))
-    service.append_event(
-        user_id=user_id,
-        run_id=int(result["run_id"]),
-        event_type="run_cancelled",
-        payload={"status": "cancelled"},
-    )
     time.sleep(0.4)
 
     events = service.list_events(
@@ -388,7 +382,9 @@ def test_cancelled_live_run_does_not_complete(monkeypatch):
         run_id=int(result["run_id"]),
         from_seq=0,
     )
-    assert "run_completed" not in [event.event_type for event in events]
+    event_types = [event.event_type for event in events]
+    assert "run_cancelled" in event_types
+    assert "run_completed" not in event_types
 
 
 def test_cancelled_live_run_does_not_fail_on_late_stream_error(monkeypatch):
@@ -412,12 +408,6 @@ def test_cancelled_live_run_does_not_fail_on_late_stream_error(monkeypatch):
     )
 
     service.mark_run_cancelled(user_id=user_id, run_id=int(result["run_id"]))
-    service.append_event(
-        user_id=user_id,
-        run_id=int(result["run_id"]),
-        event_type="run_cancelled",
-        payload={"status": "cancelled"},
-    )
     time.sleep(0.4)
 
     events = service.list_events(
@@ -425,7 +415,9 @@ def test_cancelled_live_run_does_not_fail_on_late_stream_error(monkeypatch):
         run_id=int(result["run_id"]),
         from_seq=0,
     )
-    assert "run_failed" not in [event.event_type for event in events]
+    event_types = [event.event_type for event in events]
+    assert "run_cancelled" in event_types
+    assert "run_failed" not in event_types
 
 
 def _create_document(*, user_id: str) -> dict:

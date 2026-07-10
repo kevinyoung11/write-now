@@ -246,13 +246,7 @@ class AgentRuntimeService:
         )
 
     def mark_run_cancelled(self, *, run_id: int, user_id: str) -> AgentRun:
-        return self._mark_run(
-            run_id=run_id,
-            user_id=user_id,
-            allow_terminal=False,
-            status="cancelled",
-            current_stage="cancelled",
-        )
+        return self._cancel_run_with_event(user_id=user_id, run_id=run_id)
 
     def _mark_run(
         self,
@@ -505,6 +499,36 @@ class AgentRuntimeService:
                 )
                 session.commit()
                 return True
+
+    def _cancel_run_with_event(self, *, user_id: str, run_id: int) -> AgentRun:
+        self.ensure_schema()
+        with _RUN_APPEND_LOCKS[run_id]:
+            with Session(engine, expire_on_commit=False) as session:
+                run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
+                if run.status in TERMINAL_RUN_STATUSES:
+                    raise ValueError("Run is already terminal")
+                last = session.exec(
+                    select(AgentRunEvent)
+                    .where(AgentRunEvent.run_id == int(run.id))
+                    .order_by(AgentRunEvent.seq.desc())
+                ).first()
+                next_seq = int(last.seq if last else 0) + 1
+                run.status = "cancelled"
+                run.current_stage = "cancelled"
+                run.error_message = None
+                run.updated_at = datetime.now()
+                session.add(run)
+                session.add(
+                    AgentRunEvent(
+                        run_id=int(run.id),
+                        seq=next_seq,
+                        event_type="run_cancelled",
+                        payload_json=_dump_json({"status": "cancelled"}),
+                    )
+                )
+                session.commit()
+                session.refresh(run)
+                return run
 
     def _build_deep_agent(self):
         from deepagents import create_deep_agent
