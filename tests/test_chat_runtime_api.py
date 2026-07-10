@@ -240,6 +240,43 @@ def test_chat_events_endpoint_replays_scoped_sse(monkeypatch):
     assert '"delta": "Hi"' in response.text
 
 
+def test_chat_events_endpoint_drives_stream_execution(monkeypatch):
+    from types import SimpleNamespace
+    from write_agent.api import chat as chat_api
+
+    calls = {"stream": 0}
+
+    class FakeRuntime:
+        def list_events(self, *, user_id, run_id, from_seq=0):
+            return []
+
+        def stream_chat_run(self, *, user_id, run_id):
+            calls["stream"] += 1
+            yield SimpleNamespace(
+                seq=1,
+                event_type="message_delta",
+                payload_json='{"delta": "Hi"}',
+            )
+            yield SimpleNamespace(
+                seq=2,
+                event_type="run_completed",
+                payload_json='{"status": "completed"}',
+            )
+
+    monkeypatch.setattr(chat_api, "agent_runtime_service", FakeRuntime())
+
+    client = TestClient(app)
+    response = client.get(
+        "/api/chat/runs/99/events?from_seq=0",
+        headers={"X-Dev-User-Id": f"chat-user-{uuid4().hex}"},
+    )
+
+    assert response.status_code == 200
+    assert calls["stream"] == 1
+    assert "event: message_delta" in response.text
+    assert "event: run_completed" in response.text
+
+
 def test_chat_message_endpoint_rejects_unowned_document():
     owner_id = f"chat-owner-{uuid4().hex}"
     attacker_id = f"chat-attacker-{uuid4().hex}"
@@ -289,6 +326,12 @@ def test_runtime_chat_run_uses_deepagents_stream(monkeypatch):
         selection={"text": "原文"},
         base_version_id=document["current_version"]["id"],
     )
+    list(
+        service.stream_chat_run(
+            user_id=user_id,
+            run_id=int(result["run_id"]),
+        )
+    )
 
     events = _wait_for_run_completed(
         service=service,
@@ -327,6 +370,12 @@ def test_runtime_chat_run_persists_visible_reasoning(monkeypatch):
         selection=None,
         base_version_id=document["current_version"]["id"],
     )
+    list(
+        service.stream_chat_run(
+            user_id=user_id,
+            run_id=int(result["run_id"]),
+        )
+    )
 
     events = _wait_for_run_completed(
         service=service,
@@ -345,7 +394,7 @@ def test_runtime_chat_run_persists_visible_reasoning(monkeypatch):
     assert trace.visibility == "visible"
 
 
-def test_chat_run_returns_before_background_stream_finishes(monkeypatch):
+def test_chat_run_start_returns_before_stream_execution(monkeypatch):
     from write_agent.services.agent_runtime_service import AgentRuntimeService
 
     class SlowAgent:
@@ -360,7 +409,14 @@ def test_chat_run_returns_before_background_stream_finishes(monkeypatch):
     service = AgentRuntimeService()
     user_id = f"live-stream-user-{uuid4().hex}"
     document = _create_document(user_id=user_id)
+    calls = {"build": 0}
+
+    def build_agent():
+        calls["build"] += 1
+        return SlowAgent()
+
     monkeypatch.setattr(service, "_build_deep_agent", lambda: SlowAgent())
+    monkeypatch.setattr(service, "_build_deep_agent", build_agent)
 
     started = time.monotonic()
     result = service.start_chat_run(
@@ -374,19 +430,16 @@ def test_chat_run_returns_before_background_stream_finishes(monkeypatch):
 
     assert result["status"] == "running"
     assert elapsed < 0.2
+    assert calls["build"] == 0
 
-    deadline = time.monotonic() + 1.5
-    while time.monotonic() < deadline:
-        events = service.list_events(
+    streamed = list(
+        service.stream_chat_run(
             user_id=user_id,
             run_id=int(result["run_id"]),
-            from_seq=0,
         )
-        if any(event.event_type == "run_completed" for event in events):
-            break
-        time.sleep(0.05)
-    else:
-        raise AssertionError("expected background run to complete")
+    )
+    assert calls["build"] == 1
+    assert any(event.event_type == "run_completed" for event in streamed)
 
 
 def test_chat_run_rejects_unowned_document_and_version(monkeypatch):
@@ -475,9 +528,12 @@ def test_cancelled_live_run_does_not_complete(monkeypatch):
         selection=None,
         base_version_id=document["current_version"]["id"],
     )
+    stream = service.stream_chat_run(user_id=user_id, run_id=int(result["run_id"]))
+    first_event = next(stream)
+    assert first_event.event_type in {"message_delta", "runtime_update"}
 
     service.mark_run_cancelled(user_id=user_id, run_id=int(result["run_id"]))
-    time.sleep(0.4)
+    list(stream)
 
     events = service.list_events(
         user_id=user_id,
@@ -510,7 +566,7 @@ def test_cancelled_live_run_does_not_fail_on_late_stream_error(monkeypatch):
     )
 
     service.mark_run_cancelled(user_id=user_id, run_id=int(result["run_id"]))
-    time.sleep(0.4)
+    list(service.stream_chat_run(user_id=user_id, run_id=int(result["run_id"])))
 
     events = service.list_events(
         user_id=user_id,
