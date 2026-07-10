@@ -17,21 +17,9 @@
   font-size: var(--font-d2);
 }
 
-.header {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
+.status-line {
+  padding: 8px 12px;
   border-bottom: 1px solid var(--gray-200);
-}
-
-.title {
-  color: var(--gray-800);
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.status {
   color: var(--gray-500);
   font-size: var(--font-d3);
   line-height: 1.25;
@@ -70,7 +58,7 @@
 }
 
 .message.user .bubble {
-  background: hsl(205, 86%, 94%);
+  background: var(--accent-100);
 }
 
 .reasoning {
@@ -100,6 +88,12 @@ textarea {
   padding: 8px;
   font: inherit;
   color: var(--gray-800);
+  transition: border-color 100ms;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--accent-400);
 }
 
 textarea:disabled {
@@ -113,20 +107,25 @@ textarea:disabled {
 }
 
 button {
-  border: 1px solid var(--gray-300);
+  border: none;
   border-radius: 6px;
-  background: var(--gray-800);
+  background: var(--accent-600);
   color: white;
   font: inherit;
-  font-weight: 700;
-  padding: 6px 12px;
+  font-weight: 600;
+  padding: 7px 14px;
   cursor: pointer;
+  transition: background-color 100ms;
+}
+
+button:hover:not(:disabled) {
+  background: var(--accent-700);
 }
 
 button:disabled {
   cursor: default;
-  background: var(--gray-300);
-  color: var(--gray-600);
+  background: var(--gray-200);
+  color: var(--gray-500);
 }
 
 @media (max-width: 900px) {

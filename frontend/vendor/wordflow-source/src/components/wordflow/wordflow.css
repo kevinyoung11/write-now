@@ -366,19 +366,27 @@ wordflow-setting-window {
 }
 
 .contextual-chat-button {
-  border: 1px solid var(--gray-300);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
   border-radius: 999px;
-  background: var(--gray-900);
+  background: var(--accent-600);
   color: white;
   font: inherit;
   font-size: var(--font-d3);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
-  padding: 8px 10px;
+  padding: 9px 14px;
   box-shadow:
-    0 8px 24px hsla(0, 0%, 0%, 0.14),
-    0 1px 2px hsla(0, 0%, 0%, 0.12);
+    0 8px 24px hsla(15, 55%, 30%, 0.22),
+    0 1px 2px hsla(15, 55%, 30%, 0.18);
   cursor: pointer;
+  transition: background-color 100ms;
+}
+
+.contextual-chat-button:hover {
+  background: var(--accent-700);
 }
 
 .contextual-chat-popover {
@@ -440,6 +448,20 @@ wordflow-setting-window {
 
   .popper-box {
     pointer-events: auto;
+  }
+
+  .floating-menu-box {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+    position: absolute;
+    inset: 8px 8px auto auto;
+    margin-left: 0;
+    transform: none;
+    pointer-events: none;
+
+    &:not(.hidden) {
+      pointer-events: auto;
+    }
   }
 
   .logo-container {

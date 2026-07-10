@@ -173,9 +173,8 @@ export class WordflowAgentChat extends LitElement {
     const hasDocument = this.documentId !== null;
     return html`
       <section class="agent-chat" aria-label="Document chat">
-        <div class="header">
-          <span class="title">AI</span>
-          <span class="status">${hasDocument ? this.statusText : 'Saving document'}</span>
+        <div class="status-line">
+          ${hasDocument ? this.statusText : 'Saving document'}
         </div>
         <div class="messages">
           ${this.messages.length === 0

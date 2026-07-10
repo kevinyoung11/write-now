@@ -761,7 +761,12 @@ export class WordflowWordflow extends LitElement {
           </div>
         </div>
 
-        <div class="floating-menu-box hidden" id="floating-menu-box">
+        <div
+          class="floating-menu-box ${this.contextualChatVisible
+            ? ''
+            : 'hidden'}"
+          id="floating-menu-box"
+        >
           <wordflow-floating-menu
             .popperTooltip=${this.popperTooltip}
             .loadingActionIndex=${this.loadingActionIndex}

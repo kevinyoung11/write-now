@@ -156,7 +156,6 @@ export class WordflowTextEditor extends LitElement {
 
     this.floatingMenuBox.then(element => {
       element.style.marginTop = `${100}px`;
-      element.classList.remove('hidden');
     });
 
     window.addEventListener('beforeunload', () => {
