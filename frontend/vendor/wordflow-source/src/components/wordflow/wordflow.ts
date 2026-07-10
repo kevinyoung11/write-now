@@ -8,9 +8,20 @@ import {
 } from 'lit/decorators.js';
 import { random } from '@xiaohk/utils';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { WordflowTextEditor } from '../text-editor/text-editor';
+import {
+  WordflowTextEditor,
+  type AiEditContext,
+  type DocumentSnapshot
+} from '../text-editor/text-editor';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../../config/config';
+import {
+  createDocument,
+  createDocumentVersion,
+  getDocument,
+  listDocuments,
+  type DocumentPayload
+} from '../../product/document-client';
 import { PromptManager } from './prompt-manager';
 import { RemotePromptManager } from './remote-prompt-manager';
 import { UserConfigManager, UserConfig } from './user-config';
@@ -45,6 +56,7 @@ import '../floating-menu/floating-menu';
 import '../setting-window/setting-window';
 import '../privacy-dialog/privacy-dialog';
 import '../privacy-dialog/privacy-dialog-simple';
+import '../agent-chat/agent-chat';
 
 // Assets
 import componentCSS from './wordflow.css?inline';
@@ -138,6 +150,9 @@ export class WordflowWordflow extends LitElement {
   @state()
   toastType: 'success' | 'warning' | 'error' = 'success';
 
+  @state()
+  currentDocument: DocumentPayload | null = null;
+
   @query('nightjar-toast#toast-wordflow')
   toastComponent: NightjarToast | undefined;
 
@@ -211,6 +226,7 @@ export class WordflowWordflow extends LitElement {
     if (this.workflowElement === undefined) {
       throw Error('workflowElement undefined.');
     }
+    void this.initializeCurrentDocument();
   }
 
   /**
@@ -389,7 +405,100 @@ export class WordflowWordflow extends LitElement {
   sidebarMenuFooterButtonClickedHandler(e: CustomEvent<string>) {
     // Delegate the event to the text editor component
     if (!this.textEditorElement) return;
+    const buttonAction = e.detail;
+    const editContext = this.textEditorElement.lastAiEditContext ?? {
+      action: 'ai',
+      scope: 'selection',
+      selected_text: '',
+      result_text: ''
+    };
+    const beforeSnapshot = this.textEditorElement.getCleanDocumentSnapshot();
     this.textEditorElement.sidebarMenuFooterButtonClickedHandler(e);
+    const afterSnapshot = this.textEditorElement.getCleanDocumentSnapshot();
+
+    if (buttonAction === 'accept' || buttonAction === 'accept-all') {
+      void this.saveAcceptedAiEdit(editContext, beforeSnapshot, afterSnapshot);
+    } else if (buttonAction === 'reject' || buttonAction === 'reject-all') {
+      this.textEditorElement.dispatchAiEditRejected(editContext.action);
+    }
+  }
+
+  async ensureDocument(contentHtml: string, contentText: string) {
+    if (this.currentDocument !== null) return this.currentDocument;
+    this.currentDocument = await createDocument(
+      'Untitled script',
+      contentHtml,
+      contentText
+    );
+    return this.currentDocument;
+  }
+
+  async initializeCurrentDocument() {
+    if (!this.textEditorElement || this.currentDocument !== null) return;
+    try {
+      if (await this.restoreCurrentDocument()) return;
+      const snapshot = this.textEditorElement.getCleanDocumentSnapshot();
+      await this.ensureDocument(snapshot.content_html, snapshot.content_text);
+    } catch (error) {
+      console.error('Failed to initialize document', error);
+    }
+  }
+
+  async restoreCurrentDocument() {
+    if (!this.textEditorElement) return false;
+    const documents = await listDocuments();
+    if (documents.length === 0) return false;
+    const document = await getDocument(documents[0].id);
+    this.currentDocument = document;
+    this.textEditorElement.loadDocumentHtml(
+      document.current_version?.content_html ?? ''
+    );
+    localStorage.setItem('current-document-id', String(document.id));
+    return true;
+  }
+
+  async saveAcceptedAiEdit(
+    editContext: AiEditContext,
+    beforeSnapshot: DocumentSnapshot,
+    afterSnapshot: DocumentSnapshot
+  ) {
+    if (
+      beforeSnapshot.content_text === afterSnapshot.content_text &&
+      beforeSnapshot.content_html === afterSnapshot.content_html
+    ) {
+      return;
+    }
+
+    try {
+      const document = await this.ensureDocument(
+        beforeSnapshot.content_html,
+        beforeSnapshot.content_text
+      );
+      const baseVersionId = document.current_version_id;
+      const version = await createDocumentVersion(document.id, {
+        content_html: afterSnapshot.content_html,
+        content_text: afterSnapshot.content_text,
+        source: 'ai_action',
+        reason: `${editContext.action} ${editContext.scope}`,
+        parent_version_id: baseVersionId
+      });
+      this.textEditorElement?.dispatchAiEditAccepted({
+        action: editContext.action,
+        document_id: document.id,
+        base_version_id: baseVersionId,
+        content_html: afterSnapshot.content_html,
+        content_text: afterSnapshot.content_text,
+        selected_text: editContext.selected_text,
+        result_text: editContext.result_text
+      });
+      this.currentDocument = {
+        ...document,
+        current_version_id: version.id,
+        current_version: version
+      };
+    } catch (error) {
+      console.error('Failed to save accepted AI edit', error);
+    }
   }
 
   floatingMenuToolMouseEnterHandler() {
@@ -520,6 +629,10 @@ export class WordflowWordflow extends LitElement {
         </div>
 
         <div class="right-panel">
+          <wordflow-agent-chat
+            .documentId=${this.currentDocument?.id ?? null}
+            .documentVersionId=${this.currentDocument?.current_version_id ?? null}
+          ></wordflow-agent-chat>
           <div class="top-padding"></div>
           <div class="footer-info">
             <div class="row">Version (${packageInfoJSON.version})</div>

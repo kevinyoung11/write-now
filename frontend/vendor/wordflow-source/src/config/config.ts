@@ -14,7 +14,10 @@ const customColors = {
 
 const urls = {
   wordflowEndpoint: '/api/wordflow/records',
-  textGenEndpoint: '/api/wordflow/text-gen'
+  textGenEndpoint: '/api/wordflow/text-gen',
+  documentsEndpoint: '/api/documents',
+  chatMessagesEndpoint: '/api/documents',
+  chatRunEventsEndpoint: '/api/chat/runs'
 };
 
 const colors = {
