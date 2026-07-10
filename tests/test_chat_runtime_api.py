@@ -9,6 +9,7 @@ from uuid import uuid4
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+from sqlalchemy import create_engine, inspect, text
 from sqlmodel import SQLModel
 
 from write_agent.core.database import engine
@@ -64,6 +65,63 @@ def test_runtime_store_creates_thread_run_and_replayable_events():
         assert str(error) == "Run not found"
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_runtime_store_uses_dedicated_tables_when_legacy_agent_tables_exist(
+    monkeypatch, tmp_path
+):
+    from write_agent.services import agent_runtime_service as runtime_module
+    from write_agent.services.agent_runtime_service import AgentRuntimeService
+
+    legacy_engine = create_engine(f"sqlite:///{tmp_path}/legacy-agent.db")
+    with legacy_engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE agent_threads ("
+                "id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL)"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE TABLE agent_runs ("
+                "id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, status TEXT NOT NULL)"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE TABLE agent_messages ("
+                "id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, content TEXT NOT NULL)"
+            )
+        )
+
+    monkeypatch.setattr(runtime_module, "engine", legacy_engine)
+
+    service = AgentRuntimeService()
+    user_id = f"legacy-runtime-user-{uuid4().hex}"
+    thread = service.get_or_create_thread(
+        user_id=user_id,
+        document_id=9001,
+        title="Legacy Conflict Test",
+    )
+    run = service.create_run(
+        user_id=user_id,
+        document_id=9001,
+        thread_id=int(thread.id),
+        run_type="chat",
+        input_version_id=None,
+    )
+    event = service.append_event(
+        user_id=user_id,
+        run_id=int(run.id),
+        event_type="run_started",
+        payload={"status": "running"},
+    )
+
+    tables = set(inspect(legacy_engine).get_table_names())
+    assert "agent_runtime_threads" in tables
+    assert "agent_runtime_runs" in tables
+    assert "agent_runtime_run_events" in tables
+    assert event.seq == 1
 
 
 def test_runtime_store_persists_messages_and_reasoning():
