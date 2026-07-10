@@ -17,7 +17,7 @@ import { diff_wordMode_ } from './text-diff';
 import { WELCOME_TEXT } from './welcome-text';
 
 // Editor
-import { Editor, JSONContent } from '@tiptap/core';
+import { Editor, JSONContent, posToDOMRect } from '@tiptap/core';
 import Paragraph from '@tiptap/extension-paragraph';
 import Placeholder from '@tiptap/extension-placeholder';
 import Text from '@tiptap/extension-text';
@@ -39,6 +39,7 @@ import type { PromptModel, SimpleEventMessage } from '../../types/common-types';
 import type { PromptDataLocal } from '../../types/wordflow';
 import type { PromptManager } from '../wordflow/prompt-manager';
 import type {
+  UpdateContextualChatProps,
   ToastMessage,
   UpdateSidebarMenuProps
 } from '../wordflow/wordflow';
@@ -88,6 +89,11 @@ export class WordflowTextEditor extends LitElement {
   @property({ attribute: false })
   updateSidebarMenu:
     | ((props: UpdateSidebarMenuProps) => Promise<void>)
+    | undefined;
+
+  @property({ attribute: false })
+  updateContextualChat:
+    | ((props: UpdateContextualChatProps) => void)
     | undefined;
 
   @property({ attribute: false })
@@ -286,7 +292,12 @@ export class WordflowTextEditor extends LitElement {
         myPlaceholder
       ],
       content: defaultText,
-      autofocus: true
+      autofocus: true,
+      onSelectionUpdate: () => this.notifyContextualChat(false),
+      editorProps: {
+        handleKeyDown: (_view, event) =>
+          this.contextualChatKeydownHandler(event)
+      }
     });
   }
 
@@ -300,6 +311,67 @@ export class WordflowTextEditor extends LitElement {
   //                              Custom Methods                              ||
   //==========================================================================||
   async initData() {}
+
+  contextualChatKeydownHandler(event: KeyboardEvent) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j') {
+      event.preventDefault();
+      this.notifyContextualChat(true);
+      return true;
+    }
+    return false;
+  }
+
+  notifyContextualChat(open: boolean) {
+    if (this.editor === null || this.updateContextualChat === undefined) return;
+
+    const { state, view } = this.editor;
+    const { selection } = state;
+    const hasSelection = !selection.empty;
+
+    if (!hasSelection && !open) {
+      this.updateContextualChat({ visible: false });
+      return;
+    }
+
+    const rect = hasSelection
+      ? posToDOMRect(view, selection.from, selection.to)
+      : view.coordsAtPos(selection.from);
+    const rectWidth = 'width' in rect ? rect.width : rect.right - rect.left;
+    const rectHeight = 'height' in rect ? rect.height : rect.bottom - rect.top;
+    const selectedText = hasSelection
+      ? state.doc.textBetween(selection.from, selection.to, '\n\n')
+      : '';
+    const contextBefore = state.doc.textBetween(
+      Math.max(0, selection.from - 500),
+      selection.from,
+      '\n\n'
+    );
+    const contextAfter = state.doc.textBetween(
+      selection.to,
+      Math.min(state.doc.content.size, selection.to + 500),
+      '\n\n'
+    );
+
+    this.updateContextualChat({
+      visible: true,
+      open,
+      rect: {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        width: rectWidth,
+        height: rectHeight
+      },
+      selection: selectedText
+        ? {
+            text: selectedText,
+            context_before: contextBefore,
+            context_after: contextAfter
+          }
+        : null
+    });
+  }
 
   diffParagraph(oldText: string, newText: string) {
     // const differences = diff_wordMode_(oldText, newText);
