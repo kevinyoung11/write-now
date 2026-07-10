@@ -50,6 +50,7 @@ import '../floating-menu/floating-menu';
 import '../setting-window/setting-window';
 import '../privacy-dialog/privacy-dialog';
 import '../privacy-dialog/privacy-dialog-simple';
+import '../agent-chat/agent-chat';
 
 // Assets
 import componentCSS from './wordflow.css?inline';
@@ -239,6 +240,7 @@ export class WordflowWordflow extends LitElement {
     if (this.workflowElement === undefined) {
       throw Error('workflowElement undefined.');
     }
+    void this.initializeCurrentDocument();
   }
 
   /**
@@ -443,6 +445,16 @@ export class WordflowWordflow extends LitElement {
     return this.currentDocument;
   }
 
+  async initializeCurrentDocument() {
+    if (!this.textEditorElement || this.currentDocument !== null) return;
+    try {
+      const snapshot = this.textEditorElement.getDocumentSnapshot();
+      await this.ensureDocument(snapshot.content_html, snapshot.content_text);
+    } catch (error) {
+      console.error('Failed to initialize document', error);
+    }
+  }
+
   async saveAcceptedAiEdit(
     action: string,
     beforeSnapshot: { content_html: string; content_text: string },
@@ -602,6 +614,10 @@ export class WordflowWordflow extends LitElement {
         </div>
 
         <div class="right-panel">
+          <wordflow-agent-chat
+            .documentId=${this.currentDocument?.id ?? null}
+            .documentVersionId=${this.currentDocument?.current_version_id ?? null}
+          ></wordflow-agent-chat>
           <div class="top-padding"></div>
           <div class="footer-info">
             <a

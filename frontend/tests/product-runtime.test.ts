@@ -40,4 +40,28 @@ describe("product runtime wiring", () => {
     expect(textEditor).toContain("ai-edit-rejected");
     expect(wordflow).toContain("createDocumentVersion");
   });
+
+  it("wires document-scoped streaming chat into the wordflow shell", () => {
+    const chatClient = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/product/chat-client.ts"),
+      "utf-8",
+    );
+    const agentChat = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/agent-chat/agent-chat.ts"),
+      "utf-8",
+    );
+    const wordflow = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/wordflow/wordflow.ts"),
+      "utf-8",
+    );
+
+    expect(chatClient).toContain("sendChatMessage");
+    expect(chatClient).toContain("EventSource");
+    expect(chatClient).toContain("document_version_id");
+    expect(agentChat).toContain("wordflow-agent-chat");
+    expect(agentChat).toContain("reasoning_trace");
+    expect(wordflow).toContain("wordflow-agent-chat");
+    expect(wordflow).toContain(".documentId=");
+    expect(wordflow).toContain(".documentVersionId=");
+  });
 });

@@ -357,3 +357,53 @@ wordflow-setting-window {
     max-width: 300px;
   }
 }
+
+@media (max-width: 900px) {
+  .wordflow {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    justify-content: stretch;
+    overflow-x: hidden;
+  }
+
+  .left-panel {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+    position: absolute;
+    inset: 0 auto auto 0;
+    pointer-events: none;
+  }
+
+  .popper-box {
+    pointer-events: auto;
+  }
+
+  .logo-container {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+  }
+
+  .logo-container .center {
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .center-panel {
+    grid-column: 1 / 2;
+    grid-row: 2 / 3;
+    min-height: 58vh;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .right-panel {
+    grid-column: 1 / 2;
+    grid-row: 3 / 4;
+    width: 100%;
+  }
+
+  .right-panel .top-padding,
+  .right-panel .footer-info {
+    display: none;
+  }
+}

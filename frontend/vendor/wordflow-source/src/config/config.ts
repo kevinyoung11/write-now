@@ -16,7 +16,8 @@ const urls = {
   wordflowEndpoint: '/api/wordflow/records',
   textGenEndpoint: '/api/wordflow/text-gen',
   documentsEndpoint: '/api/documents',
-  chatMessagesEndpoint: '/api/documents'
+  chatMessagesEndpoint: '/api/documents',
+  chatRunEventsEndpoint: '/api/chat/runs'
 };
 
 const colors = {
