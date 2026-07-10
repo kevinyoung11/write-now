@@ -115,7 +115,17 @@ class Settings(BaseSettings):
         default="sqlite:///./data/acceptance_write_agent.db",
         validation_alias=AliasChoices("SUPABASE_DB_URL", "DATABASE_URL"),
     )
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
     chroma_dir: str = "./data/chroma"
+
+    # 认证与写作工作台运行时配置
+    auth_dev_user_enabled: bool = True
+    auth_dev_user_id: str = "dev-user"
+    auth_dev_email: str = "dev@example.local"
+    chat_recent_message_limit: int = 12
+    agent_event_replay_sleep_seconds: float = 0.2
 
     # 日志配置
     log_level: str = "INFO"
