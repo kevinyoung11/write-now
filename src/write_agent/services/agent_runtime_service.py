@@ -390,6 +390,8 @@ class AgentRuntimeService:
                 config=config,
                 stream_mode=["messages", "updates"],
             ):
+                if self._is_run_terminal(run_id=int(run.id), user_id=user_id):
+                    return
                 if mode == "messages":
                     delta = _message_delta(chunk)
                     if delta:
@@ -408,6 +410,8 @@ class AgentRuntimeService:
                         payload={"update": chunk},
                     )
 
+            if self._is_run_terminal(run_id=int(run.id), user_id=user_id):
+                return
             final_answer = "".join(final_chunks)
             self.save_message(
                 user_id=user_id,
@@ -493,6 +497,12 @@ class AgentRuntimeService:
             f"document_text:\n{document_text}\n\n"
             f"user_request:\n{content}"
         )
+
+    def _is_run_terminal(self, *, run_id: int, user_id: str) -> bool:
+        self.ensure_schema()
+        with Session(engine, expire_on_commit=False) as session:
+            run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
+            return run.status in TERMINAL_RUN_STATUSES
 
 
 agent_runtime_service = AgentRuntimeService()

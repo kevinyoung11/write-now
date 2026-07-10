@@ -350,6 +350,47 @@ def test_cancel_does_not_overwrite_completed_run():
         raise AssertionError("expected ValueError")
 
 
+def test_cancelled_live_run_does_not_complete(monkeypatch):
+    from write_agent.services.agent_runtime_service import AgentRuntimeService
+
+    class SlowAgent:
+        def stream(self, input_payload, config=None, stream_mode=None):
+            time.sleep(0.15)
+            yield ("messages", (SimpleContent("late"), {}))
+
+    class SimpleContent:
+        def __init__(self, content):
+            self.content = content
+
+    service = AgentRuntimeService()
+    user_id = f"cancel-live-{uuid4().hex}"
+    document = _create_document(user_id=user_id)
+    monkeypatch.setattr(service, "_build_deep_agent", lambda: SlowAgent())
+    result = service.start_chat_run(
+        user_id=user_id,
+        document_id=int(document["id"]),
+        content="开始",
+        selection=None,
+        base_version_id=document["current_version"]["id"],
+    )
+
+    service.mark_run_cancelled(user_id=user_id, run_id=int(result["run_id"]))
+    service.append_event(
+        user_id=user_id,
+        run_id=int(result["run_id"]),
+        event_type="run_cancelled",
+        payload={"status": "cancelled"},
+    )
+    time.sleep(0.4)
+
+    events = service.list_events(
+        user_id=user_id,
+        run_id=int(result["run_id"]),
+        from_seq=0,
+    )
+    assert "run_completed" not in [event.event_type for event in events]
+
+
 def _create_document(*, user_id: str) -> dict:
     client = TestClient(app)
     response = client.post(
