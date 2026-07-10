@@ -25,5 +25,19 @@ describe("product runtime wiring", () => {
     expect(actions).toContain("shorten");
     expect(client).toContain("createDocumentVersion");
   });
-});
 
+  it("emits accepted AI edit events for version saving", () => {
+    const textEditor = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/text-editor/text-editor.ts"),
+      "utf-8",
+    );
+    const wordflow = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/wordflow/wordflow.ts"),
+      "utf-8",
+    );
+
+    expect(textEditor).toContain("ai-edit-accepted");
+    expect(textEditor).toContain("ai-edit-rejected");
+    expect(wordflow).toContain("createDocumentVersion");
+  });
+});

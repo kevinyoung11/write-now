@@ -11,6 +11,11 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { WordflowTextEditor } from '../text-editor/text-editor';
 import { v4 as uuidv4, validate } from 'uuid';
 import { config } from '../../config/config';
+import {
+  createDocument,
+  createDocumentVersion,
+  type DocumentPayload
+} from '../../product/document-client';
 import { PromptManager } from './prompt-manager';
 import { RemotePromptManager } from './remote-prompt-manager';
 import { UserConfigManager, UserConfig } from './user-config';
@@ -140,6 +145,9 @@ export class WordflowWordflow extends LitElement {
 
   @state()
   toastType: 'success' | 'warning' | 'error' = 'success';
+
+  @state()
+  currentDocument: DocumentPayload | null = null;
 
   @query('nightjar-toast#toast-wordflow')
   toastComponent: NightjarToast | undefined;
@@ -409,7 +417,57 @@ export class WordflowWordflow extends LitElement {
   sidebarMenuFooterButtonClickedHandler(e: CustomEvent<string>) {
     // Delegate the event to the text editor component
     if (!this.textEditorElement) return;
+    const action = e.detail;
+    const beforeSnapshot = this.textEditorElement.getDocumentSnapshot();
     this.textEditorElement.sidebarMenuFooterButtonClickedHandler(e);
+    const afterSnapshot = this.textEditorElement.getDocumentSnapshot();
+
+    if (action === 'accept' || action === 'accept-all') {
+      this.textEditorElement.dispatchAiEditAccepted({
+        action,
+        ...afterSnapshot
+      });
+      void this.saveAcceptedAiEdit(action, beforeSnapshot, afterSnapshot);
+    } else if (action === 'reject' || action === 'reject-all') {
+      this.textEditorElement.dispatchAiEditRejected(action);
+    }
+  }
+
+  async ensureDocument(contentHtml: string, contentText: string) {
+    if (this.currentDocument !== null) return this.currentDocument;
+    this.currentDocument = await createDocument(
+      'Untitled script',
+      contentHtml,
+      contentText
+    );
+    return this.currentDocument;
+  }
+
+  async saveAcceptedAiEdit(
+    action: string,
+    beforeSnapshot: { content_html: string; content_text: string },
+    afterSnapshot: { content_html: string; content_text: string }
+  ) {
+    try {
+      const document = await this.ensureDocument(
+        beforeSnapshot.content_html,
+        beforeSnapshot.content_text
+      );
+      const version = await createDocumentVersion(document.id, {
+        content_html: afterSnapshot.content_html,
+        content_text: afterSnapshot.content_text,
+        source: 'ai_action',
+        reason: `${action || 'ai'} selection`,
+        parent_version_id: document.current_version_id
+      });
+      this.currentDocument = {
+        ...document,
+        current_version_id: version.id,
+        current_version: version
+      };
+    } catch (error) {
+      console.error('Failed to save accepted AI edit', error);
+    }
   }
 
   floatingMenuToolMouseEnterHandler() {

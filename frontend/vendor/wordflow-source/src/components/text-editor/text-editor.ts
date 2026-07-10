@@ -698,6 +698,40 @@ export class WordflowTextEditor extends LitElement {
     }
   }
 
+  getDocumentSnapshot() {
+    if (this.editor === null) {
+      return { content_html: '', content_text: '' };
+    }
+    return {
+      content_html: this.editor.getHTML(),
+      content_text: this.editor.getText()
+    };
+  }
+
+  dispatchAiEditAccepted(detail: {
+    action: string;
+    content_html: string;
+    content_text: string;
+  }) {
+    this.dispatchEvent(
+      new CustomEvent('ai-edit-accepted', {
+        detail,
+        bubbles: true,
+        composed: true
+      })
+    );
+  }
+
+  dispatchAiEditRejected(action: string) {
+    this.dispatchEvent(
+      new CustomEvent('ai-edit-rejected', {
+        detail: { action },
+        bubbles: true,
+        composed: true
+      })
+    );
+  }
+
   /**
    * Highlight the currently effective selection. It is the user's selected
    * text or the current paragraph (if there is no selection).
