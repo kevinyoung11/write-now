@@ -436,6 +436,8 @@ class AgentRuntimeService:
             )
             self.mark_run_completed(run_id=int(run.id), user_id=user_id)
         except Exception as error:
+            if self._is_run_terminal(run_id=int(run.id), user_id=user_id):
+                return
             self.append_event(
                 user_id=user_id,
                 run_id=int(run.id),
@@ -447,7 +449,6 @@ class AgentRuntimeService:
                 user_id=user_id,
                 error_message=str(error),
             )
-            raise
 
     def _build_deep_agent(self):
         from deepagents import create_deep_agent
