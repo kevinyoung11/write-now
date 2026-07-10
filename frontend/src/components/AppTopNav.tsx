@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, PenTool } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useLanguage } from "../i18n";
 import "./AppTopNav.css";
 
@@ -94,10 +94,23 @@ export const AppTopNav: React.FC = () => {
       <header className="app-top-nav">
         <div className="app-top-nav-left">
           <div className="app-top-nav-brand">
-            <div className="app-top-nav-logo">
-              <PenTool size={16} />
-            </div>
-            <span>砚雀 (YanQue)</span>
+            <svg
+              className="app-top-nav-logo"
+              width="28"
+              height="28"
+              viewBox="0 0 40 40"
+              fill="none"
+              aria-hidden="true"
+            >
+              <rect x="7" y="5" width="24" height="30" rx="1.5" fill="var(--card)" stroke="var(--ink)" strokeWidth="1.8" />
+              <rect x="12" y="12" width="14" height="2" rx="1" fill="var(--hair-2)" />
+              <rect x="12" y="17.5" width="14" height="2" rx="1" fill="var(--hair-2)" />
+              <rect x="12" y="23" width="9" height="2" rx="1" fill="var(--ochre)" />
+              <line x1="34" y1="8" x2="21.5" y2="23.5" stroke="var(--ink)" strokeWidth="2.1" strokeLinecap="round" />
+              <path d="M21.5 23.5 L18.3 27 L23.4 25.8 Z" fill="var(--ink)" />
+              <circle cx="21" cy="24" r="1.2" fill="var(--ochre)" />
+            </svg>
+            <span>字里行间</span>
           </div>
 
           <div

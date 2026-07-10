@@ -37,12 +37,9 @@
 }
 
 .app-top-nav-logo {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--ink);
-  color: var(--paper);
-  background: var(--ink);
+  width: 28px;
+  height: 28px;
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
