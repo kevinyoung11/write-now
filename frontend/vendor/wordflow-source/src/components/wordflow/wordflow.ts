@@ -13,7 +13,7 @@ import {
   type AiEditContext,
   type DocumentSnapshot
 } from '../text-editor/text-editor';
-import { v4 as uuidv4, validate } from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 import { config } from '../../config/config';
 import {
   createDocument,
@@ -58,10 +58,7 @@ import '../agent-chat/agent-chat';
 
 // Assets
 import componentCSS from './wordflow.css?inline';
-import logoIcon from '../../images/wordflow-logo.svg?raw';
-import githubIcon from '../../images/icon-github.svg?raw';
-import fileIcon from '../../images/icon-file.svg?raw';
-import youtubeIcon from '../../images/icon-play.svg?raw';
+import logoIcon from '../../images/logo.svg?raw';
 import defaultPromptsJSON from '../../prompts/default-prompts.json';
 import packageInfoJSON from '../../../package.json';
 import TextGenLocalWorkerInline from '../../llms/web-llm?worker&inline';
@@ -218,23 +215,6 @@ export class WordflowWordflow extends LitElement {
 
     // We do not collect usage data now
     localStorage.setItem('has-confirmed-privacy', 'true');
-
-    // Query and show a prompt if the URL includes the prompt search param
-    const urlParams = new URLSearchParams(window.location.search);
-
-    if (urlParams.has('prompt')) {
-      const promptID = urlParams.get('prompt')!;
-      if (validate(promptID)) {
-        this.remotePromptManager.getPrompt(promptID).then(prompt => {
-          if (prompt !== null) {
-            this.showSettingWindow = true;
-            this.settingWindowComponent.then(window => {
-              window.showCommunityPrompt(prompt);
-            });
-          }
-        });
-      }
-    }
 
     // Initialize the local llm worker
     this.textGenLocalWorker = new TextGenLocalWorkerInline();
@@ -606,14 +586,10 @@ export class WordflowWordflow extends LitElement {
 
         <div class="logo-container">
           <div class="center">
-            <a
-              class="row"
-              href="https://github.com/poloclub/wordflow"
-              target="_blank"
-            >
+            <span class="row">
               <span class="svg-icon">${unsafeHTML(logoIcon)}</span>
-              <span class="name">Wordflow</span>
-            </a>
+              <span class="name">Write Now</span>
+            </span>
           </div>
         </div>
 
@@ -643,37 +619,7 @@ export class WordflowWordflow extends LitElement {
           ></wordflow-agent-chat>
           <div class="top-padding"></div>
           <div class="footer-info">
-            <a
-              class="row"
-              href="https://github.com/poloclub/wordflow/"
-              target="_blank"
-              ><span class="svg-icon">${unsafeHTML(githubIcon)}</span> Code</a
-            >
-
-            <a
-              class="row"
-              href="https://arxiv.org/abs/2401.14447"
-              target="_blank"
-              ><span class="svg-icon">${unsafeHTML(fileIcon)}</span> Paper</a
-            >
-
-            <a class="row" href="https://youtu.be/3dOcVuofGVo" target="_blank"
-              ><span class="svg-icon">${unsafeHTML(youtubeIcon)}</span> Video</a
-            >
-
-            <a
-              class="row"
-              href="https://github.com/poloclub/wordflow/issues/new"
-              target="_blank"
-              >Report an issue</a
-            >
-
-            <a
-              class="row"
-              href="https://github.com/poloclub/wordflow"
-              target="_blank"
-              >Version (${packageInfoJSON.version})</a
-            >
+            <div class="row">Version (${packageInfoJSON.version})</div>
 
             <div
               class="row"

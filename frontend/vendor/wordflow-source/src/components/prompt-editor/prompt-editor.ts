@@ -63,7 +63,7 @@ const ALL_MODELS: LLMModel[] = [
   { label: 'GPT 5.4 Nano', name: 'gpt-5.4-nano' },
   { label: 'GPT 5 Mini', name: 'gpt-5-mini' },
   { label: 'GPT 5 Nano', name: 'gpt-5-nano' },
-  { label: 'GPT 5 Nano (free)', name: 'gpt-5-nano-free' },
+  { label: 'GPT (Default)', name: 'gpt-5-nano-free' },
   { label: 'GPT 5', name: 'gpt-5' },
   { label: 'GPT 4.1', name: 'gpt-4.1' },
   { label: 'Gemini Pro', name: 'gemini-pro' },

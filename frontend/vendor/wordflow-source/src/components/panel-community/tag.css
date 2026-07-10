@@ -3,8 +3,8 @@
   line-height: 1;
   font-size: var(--font-d2);
   padding: 4px 6px;
-  background-color: var(--blue-50);
-  color: var(--blue-900);
+  background-color: var(--accent-50);
+  color: var(--accent-900);
   border-radius: 5px;
   white-space: nowrap;
   height: var(--font-d2);
@@ -14,15 +14,15 @@
   -webkit-user-select: none;
 
   &:hover {
-    background-color: color-mix(in lab, var(--blue-100), white 30%);
+    background-color: color-mix(in lab, var(--accent-100), white 30%);
   }
 
   &:active {
-    background-color: color-mix(in lab, var(--blue-100), white 2%);
+    background-color: color-mix(in lab, var(--accent-100), white 2%);
   }
 
   &[is-selected] {
-    background-color: color-mix(in lab, var(--blue-100), white 2%);
+    background-color: color-mix(in lab, var(--accent-100), white 2%);
   }
 
   &.expand-tag {

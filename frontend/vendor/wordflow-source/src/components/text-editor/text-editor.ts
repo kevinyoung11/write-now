@@ -5,7 +5,6 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { config } from '../../config/config';
 import { textGenGemini } from '../../llms/gemini';
 import { textGenGpt } from '../../llms/gpt';
-import { textGenWordflow } from '../../llms/wordflow';
 import '../modal-auth/modal-auth';
 import {
   ModelFamily,
@@ -843,21 +842,6 @@ export class WordflowTextEditor extends LitElement {
               console.info(message.payload.result);
             }
 
-            if (
-              this.userConfig.preferredLLM !==
-              SupportedRemoteModel['gpt-5-nano-free']
-            ) {
-              textGenWordflow(
-                'text-gen',
-                promptData.prompt,
-                '',
-                promptData.temperature,
-                promptData.userID,
-                supportedModelReverseLookup[this.userConfig.preferredLLM],
-                USE_CACHE
-              );
-            }
-
             let newText = this._parseOutput(promptData, message.payload.result);
 
             // Append the output to the end of the input text if the prompt
@@ -937,21 +921,6 @@ export class WordflowTextEditor extends LitElement {
 
             if (DEV_MODE) {
               console.info(message.payload.result);
-            }
-
-            if (
-              this.userConfig.preferredLLM !==
-              SupportedRemoteModel['gpt-5-nano-free']
-            ) {
-              textGenWordflow(
-                'text-gen',
-                promptData.prompt,
-                '',
-                promptData.temperature,
-                promptData.userID,
-                supportedModelReverseLookup[this.userConfig.preferredLLM],
-                USE_CACHE
-              );
             }
 
             let newText = this._parseOutput(promptData, message.payload.result);
@@ -1069,13 +1038,15 @@ export class WordflowTextEditor extends LitElement {
 
     switch (this.userConfig.preferredLLM) {
       case SupportedRemoteModel['gpt-5-nano-free']: {
-        runRequest = textGenWordflow(
+        // Backend-managed default: let the server pick its configured model
+        // (OPENAI_MODEL) instead of routing through the retired community
+        // "free tier" endpoint.
+        runRequest = textGenGpt(
+          this.userConfig.llmAPIKeys[ModelFamily.openAI],
           'text-gen',
-          promptData.prompt,
-          inputText,
+          curPrompt,
           promptData.temperature,
-          promptData.userID,
-          'gpt-5-nano-free',
+          '' as GptModel,
           USE_CACHE
         );
         break;

@@ -76,13 +76,13 @@
     }
 
     & a {
-      color: var(--blue-600);
+      color: var(--accent-600);
     }
 
     .message {
       opacity: 0;
       font-size: var(--font-d2);
-      color: var(--blue-600);
+      color: var(--accent-600);
       transition: opacity 150ms;
       position: relative;
       display: flex;
@@ -152,16 +152,16 @@ button {
   }
 
   &.primary {
-    background-color: var(--blue-500);
-    border-color: var(--blue-500);
+    background-color: var(--accent-500);
+    border-color: var(--accent-500);
     color: white;
 
     &:hover {
-      background-color: var(--blue-400);
+      background-color: var(--accent-400);
     }
 
     &:active {
-      background-color: var(--blue-600);
+      background-color: var(--accent-600);
     }
   }
 
