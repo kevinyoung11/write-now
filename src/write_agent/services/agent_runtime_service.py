@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import datetime
+from collections import defaultdict
 from uuid import uuid4
 
+from fastapi.encoders import jsonable_encoder
 from sqlmodel import SQLModel, Session, select
 
 from write_agent.core.database import engine
@@ -14,6 +17,8 @@ from write_agent.models import (
     AgentRunEvent,
     AgentThread,
 )
+
+_RUN_APPEND_LOCKS: defaultdict[int, threading.Lock] = defaultdict(threading.Lock)
 
 
 class AgentRuntimeService:
@@ -65,6 +70,9 @@ class AgentRuntimeService:
     ) -> AgentRun:
         self.ensure_schema()
         with Session(engine, expire_on_commit=False) as session:
+            thread = session.get(AgentThread, thread_id)
+            if thread is None or thread.user_id != user_id or thread.document_id != document_id:
+                raise ValueError("Thread not found")
             run = AgentRun(
                 user_id=user_id,
                 document_id=document_id,
@@ -80,34 +88,52 @@ class AgentRuntimeService:
             return run
 
     def append_event(
-        self, *, run_id: int, event_type: str, payload: dict
+        self,
+        *,
+        run_id: int,
+        event_type: str,
+        payload: dict,
+        user_id: str | None = None,
+        _internal: bool = False,
     ) -> AgentRunEvent:
         self.ensure_schema()
-        with Session(engine, expire_on_commit=False) as session:
-            last = session.exec(
-                select(AgentRunEvent)
-                .where(AgentRunEvent.run_id == run_id)
-                .order_by(AgentRunEvent.seq.desc())
-            ).first()
-            seq = int(last.seq if last else 0) + 1
-            event = AgentRunEvent(
-                run_id=run_id,
-                seq=seq,
-                event_type=event_type,
-                payload_json=json.dumps(payload, ensure_ascii=False),
-            )
-            session.add(event)
-            session.commit()
-            session.refresh(event)
-            return event
+        if user_id is None and not _internal:
+            raise ValueError("User scope is required")
+        with _RUN_APPEND_LOCKS[run_id]:
+            with Session(engine, expire_on_commit=False) as session:
+                run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
+                last = session.exec(
+                    select(AgentRunEvent)
+                    .where(AgentRunEvent.run_id == int(run.id))
+                    .order_by(AgentRunEvent.seq.desc())
+                ).first()
+                seq = int(last.seq if last else 0) + 1
+                event = AgentRunEvent(
+                    run_id=int(run.id),
+                    seq=seq,
+                    event_type=event_type,
+                    payload_json=_dump_json(payload),
+                )
+                session.add(event)
+                session.commit()
+                session.refresh(event)
+                return event
 
-    def list_events(self, *, run_id: int, from_seq: int = 0) -> list[AgentRunEvent]:
+    def list_events(
+        self, *, run_id: int, from_seq: int = 0, user_id: str | None = None
+    ) -> list[AgentRunEvent]:
         self.ensure_schema()
+        if user_id is None:
+            raise ValueError("User scope is required")
         with Session(engine, expire_on_commit=False) as session:
+            run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
             return list(
                 session.exec(
                     select(AgentRunEvent)
-                    .where(AgentRunEvent.run_id == run_id, AgentRunEvent.seq > from_seq)
+                    .where(
+                        AgentRunEvent.run_id == int(run.id),
+                        AgentRunEvent.seq > from_seq,
+                    )
                     .order_by(AgentRunEvent.seq.asc())
                 )
             )
@@ -115,6 +141,7 @@ class AgentRuntimeService:
     def save_message(
         self,
         *,
+        user_id: str | None = None,
         thread_id: int,
         run_id: int | None,
         role: str,
@@ -123,13 +150,22 @@ class AgentRuntimeService:
         document_version_id: int | None,
     ) -> AgentMessage:
         self.ensure_schema()
+        if user_id is None:
+            raise ValueError("User scope is required")
         with Session(engine, expire_on_commit=False) as session:
+            thread = session.get(AgentThread, thread_id)
+            if thread is None or thread.user_id != user_id:
+                raise ValueError("Thread not found")
+            if run_id is not None:
+                run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
+                if run.thread_id != thread_id:
+                    raise ValueError("Run not found")
             message = AgentMessage(
                 thread_id=thread_id,
                 run_id=run_id,
                 role=role,
                 content=content,
-                metadata_json=json.dumps(metadata, ensure_ascii=False),
+                metadata_json=_dump_json(metadata),
                 document_version_id=document_version_id,
             )
             session.add(message)
@@ -140,6 +176,7 @@ class AgentRuntimeService:
     def save_reasoning_trace(
         self,
         *,
+        user_id: str | None = None,
         run_id: int,
         thread_id: int,
         seq: int,
@@ -148,7 +185,12 @@ class AgentRuntimeService:
         visibility: str,
     ) -> AgentReasoningTrace:
         self.ensure_schema()
+        if user_id is None:
+            raise ValueError("User scope is required")
         with Session(engine, expire_on_commit=False) as session:
+            run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
+            if run.thread_id != thread_id:
+                raise ValueError("Run not found")
             trace = AgentReasoningTrace(
                 run_id=run_id,
                 thread_id=thread_id,
@@ -162,24 +204,38 @@ class AgentRuntimeService:
             session.refresh(trace)
             return trace
 
-    def mark_run_completed(self, *, run_id: int) -> AgentRun:
+    def mark_run_completed(
+        self, *, run_id: int, user_id: str | None = None, _internal: bool = False
+    ) -> AgentRun:
         return self._mark_run(
             run_id=run_id,
+            user_id=user_id,
+            _internal=_internal,
             status="completed",
             current_stage="completed",
         )
 
-    def mark_run_failed(self, *, run_id: int, error_message: str) -> AgentRun:
+    def mark_run_failed(
+        self,
+        *,
+        run_id: int,
+        error_message: str,
+        user_id: str | None = None,
+        _internal: bool = False,
+    ) -> AgentRun:
         return self._mark_run(
             run_id=run_id,
+            user_id=user_id,
+            _internal=_internal,
             status="failed",
             current_stage="failed",
             error_message=error_message,
         )
 
-    def mark_run_cancelled(self, *, run_id: int) -> AgentRun:
+    def mark_run_cancelled(self, *, run_id: int, user_id: str) -> AgentRun:
         return self._mark_run(
             run_id=run_id,
+            user_id=user_id,
             status="cancelled",
             current_stage="cancelled",
         )
@@ -188,15 +244,17 @@ class AgentRuntimeService:
         self,
         *,
         run_id: int,
+        user_id: str | None = None,
+        _internal: bool = False,
         status: str,
         current_stage: str,
         error_message: str | None = None,
     ) -> AgentRun:
         self.ensure_schema()
+        if user_id is None and not _internal:
+            raise ValueError("User scope is required")
         with Session(engine, expire_on_commit=False) as session:
-            run = session.get(AgentRun, run_id)
-            if run is None:
-                raise ValueError("Run not found")
+            run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
             run.status = status
             run.current_stage = current_stage
             run.error_message = error_message
@@ -206,6 +264,17 @@ class AgentRuntimeService:
             session.refresh(run)
             return run
 
+    def _get_scoped_run(
+        self, session: Session, *, run_id: int, user_id: str | None
+    ) -> AgentRun:
+        run = session.get(AgentRun, run_id)
+        if run is None or (user_id is not None and run.user_id != user_id):
+            raise ValueError("Run not found")
+        return run
+
 
 agent_runtime_service = AgentRuntimeService()
 
+
+def _dump_json(value: object) -> str:
+    return json.dumps(jsonable_encoder(value), ensure_ascii=False)
