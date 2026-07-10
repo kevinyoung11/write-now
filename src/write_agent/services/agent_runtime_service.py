@@ -337,22 +337,152 @@ class AgentRuntimeService:
             event_type="user_message_saved",
             payload={"content": content},
         )
-        worker = threading.Thread(
-            target=self._run_chat_stream,
-            kwargs={
-                "user_id": user_id,
-                "document_id": document_id,
-                "thread": thread,
-                "run": run,
-                "content": content,
-                "selection": selection or {},
-                "base_version_id": base_version_id,
-                "document_text": current_version.content_text,
-            },
-            daemon=True,
-        )
-        worker.start()
         return {"run_id": run.id, "thread_id": thread.id, "status": "running"}
+
+    def stream_chat_run(self, *, user_id: str, run_id: int):
+        context = self._claim_chat_run_for_streaming(user_id=user_id, run_id=run_id)
+        if context is None:
+            return
+
+        thread, run, content, selection, base_version_id, document_text = context
+        final_chunks: list[str] = []
+        try:
+            agent = self._build_deep_agent()
+            message = self._build_user_message(
+                content=content,
+                selection=selection,
+                document_id=int(run.document_id),
+                base_version_id=base_version_id,
+                document_text=document_text,
+            )
+            config = {
+                "configurable": {
+                    "thread_id": thread.langgraph_thread_id,
+                }
+            }
+            for mode, chunk in agent.stream(
+                {"messages": [{"role": "user", "content": message}]},
+                config=config,
+                stream_mode=["messages", "updates"],
+            ):
+                if self._is_run_terminal(run_id=int(run.id), user_id=user_id):
+                    return
+                if mode == "messages":
+                    delta = _message_delta(chunk)
+                    if delta:
+                        final_chunks.append(delta)
+                        yield self.append_event(
+                            user_id=user_id,
+                            run_id=int(run.id),
+                            event_type="message_delta",
+                            payload={"delta": delta},
+                        )
+                elif mode == "updates":
+                    reasoning = _reasoning_delta(chunk)
+                    if reasoning:
+                        trace = self.save_reasoning_trace(
+                            user_id=user_id,
+                            run_id=int(run.id),
+                            thread_id=int(thread.id),
+                            seq=len(final_chunks) + 1,
+                            content=reasoning,
+                            summary=reasoning,
+                            visibility="visible",
+                        )
+                        yield self.append_event(
+                            user_id=user_id,
+                            run_id=int(run.id),
+                            event_type="reasoning_delta",
+                            payload={
+                                "content": trace.content,
+                                "summary": trace.summary,
+                                "visibility": trace.visibility,
+                            },
+                        )
+                    yield self.append_event(
+                        user_id=user_id,
+                        run_id=int(run.id),
+                        event_type="runtime_update",
+                        payload={"update": chunk},
+                    )
+
+            if self._is_run_terminal(run_id=int(run.id), user_id=user_id):
+                return
+            final_answer = "".join(final_chunks)
+            self.save_message(
+                user_id=user_id,
+                thread_id=int(thread.id),
+                run_id=int(run.id),
+                role="assistant",
+                content=final_answer,
+                metadata={},
+                document_version_id=base_version_id,
+            )
+            for event in self._complete_run_with_events(
+                user_id=user_id,
+                run_id=int(run.id),
+                final_answer=final_answer,
+            ):
+                yield event
+        except Exception as error:
+            event = self._fail_run_with_event(
+                run_id=int(run.id),
+                user_id=user_id,
+                error_message=str(error),
+            )
+            if event is not None:
+                yield event
+
+    def _claim_chat_run_for_streaming(self, *, user_id: str, run_id: int):
+        self.ensure_schema()
+        with Session(engine, expire_on_commit=False) as session:
+            run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
+            if run.status in TERMINAL_RUN_STATUSES:
+                return None
+            if run.type != "chat":
+                raise ValueError("Run not found")
+            if run.current_stage != "run_started":
+                return None
+            thread = session.get(AgentThread, run.thread_id)
+            if thread is None or thread.user_id != user_id:
+                raise ValueError("Thread not found")
+            user_message = session.exec(
+                select(AgentMessage)
+                .where(
+                    AgentMessage.run_id == int(run.id),
+                    AgentMessage.role == "user",
+                )
+                .order_by(AgentMessage.created_at.desc())
+            ).first()
+            if user_message is None:
+                raise ValueError("User message not found")
+            run.current_stage = "streaming"
+            run.updated_at = datetime.now()
+            session.add(run)
+            session.commit()
+            session.refresh(run)
+
+            metadata = json.loads(user_message.metadata_json or "{}")
+            content = user_message.content
+            selection = metadata.get("selection") or {}
+            base_version_id = run.input_version_id
+
+        _document, current_version = document_service.get_document(
+            user_id=user_id,
+            document_id=int(run.document_id),
+        )
+        document_text = current_version.content_text
+        if base_version_id is not None and current_version.id != base_version_id:
+            versions = document_service.list_versions(
+                user_id=user_id,
+                document_id=int(run.document_id),
+            )
+            for version in versions:
+                if version.id == base_version_id:
+                    document_text = version.content_text
+                    break
+
+        return thread, run, content, selection, base_version_id, document_text
 
     def _run_chat_stream(
         self,
@@ -453,13 +583,13 @@ class AgentRuntimeService:
 
     def _complete_run_with_events(
         self, *, user_id: str, run_id: int, final_answer: str
-    ) -> bool:
+    ) -> list[AgentRunEvent]:
         self.ensure_schema()
         with _RUN_APPEND_LOCKS[run_id]:
             with Session(engine, expire_on_commit=False) as session:
                 run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
                 if run.status in TERMINAL_RUN_STATUSES:
-                    return False
+                    return []
                 last = session.exec(
                     select(AgentRunEvent)
                     .where(AgentRunEvent.run_id == int(run.id))
@@ -471,34 +601,34 @@ class AgentRuntimeService:
                 run.error_message = None
                 run.updated_at = datetime.now()
                 session.add(run)
-                session.add(
-                    AgentRunEvent(
-                        run_id=int(run.id),
-                        seq=next_seq,
-                        event_type="message_completed",
-                        payload_json=_dump_json({"content": final_answer}),
-                    )
+                message_completed = AgentRunEvent(
+                    run_id=int(run.id),
+                    seq=next_seq,
+                    event_type="message_completed",
+                    payload_json=_dump_json({"content": final_answer}),
                 )
-                session.add(
-                    AgentRunEvent(
-                        run_id=int(run.id),
-                        seq=next_seq + 1,
-                        event_type="run_completed",
-                        payload_json=_dump_json({"status": "completed"}),
-                    )
+                run_completed = AgentRunEvent(
+                    run_id=int(run.id),
+                    seq=next_seq + 1,
+                    event_type="run_completed",
+                    payload_json=_dump_json({"status": "completed"}),
                 )
+                session.add(message_completed)
+                session.add(run_completed)
                 session.commit()
-                return True
+                session.refresh(message_completed)
+                session.refresh(run_completed)
+                return [message_completed, run_completed]
 
     def _fail_run_with_event(
         self, *, user_id: str, run_id: int, error_message: str
-    ) -> bool:
+    ) -> AgentRunEvent | None:
         self.ensure_schema()
         with _RUN_APPEND_LOCKS[run_id]:
             with Session(engine, expire_on_commit=False) as session:
                 run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
                 if run.status in TERMINAL_RUN_STATUSES:
-                    return False
+                    return None
                 last = session.exec(
                     select(AgentRunEvent)
                     .where(AgentRunEvent.run_id == int(run.id))
@@ -510,16 +640,16 @@ class AgentRuntimeService:
                 run.error_message = error_message
                 run.updated_at = datetime.now()
                 session.add(run)
-                session.add(
-                    AgentRunEvent(
-                        run_id=int(run.id),
-                        seq=next_seq,
-                        event_type="run_failed",
-                        payload_json=_dump_json({"error": error_message}),
-                    )
+                event = AgentRunEvent(
+                    run_id=int(run.id),
+                    seq=next_seq,
+                    event_type="run_failed",
+                    payload_json=_dump_json({"error": error_message}),
                 )
+                session.add(event)
                 session.commit()
-                return True
+                session.refresh(event)
+                return event
 
     def _cancel_run_with_event(self, *, user_id: str, run_id: int) -> AgentRun:
         self.ensure_schema()

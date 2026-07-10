@@ -79,9 +79,6 @@ async def stream_chat_run_events(
                 run_id=run_id,
                 from_seq=next_seq,
             )
-            if not events:
-                time.sleep(sleep_seconds)
-                continue
 
             for event in events:
                 next_seq = int(event.seq)
@@ -92,6 +89,27 @@ async def stream_chat_run_events(
                 )
                 if event.event_type in TERMINAL_EVENTS:
                     return
+
+            streamed = False
+            try:
+                for event in agent_runtime_service.stream_chat_run(
+                    user_id=user.supabase_user_id,
+                    run_id=run_id,
+                ):
+                    streamed = True
+                    next_seq = int(event.seq)
+                    yield _sse(
+                        event.event_type,
+                        json.loads(event.payload_json or "{}"),
+                        next_seq,
+                    )
+                    if event.event_type in TERMINAL_EVENTS:
+                        return
+            except ValueError as error:
+                yield _sse("error", {"detail": str(error)}, next_seq)
+                return
+            if not events and not streamed:
+                time.sleep(sleep_seconds)
 
     return StreamingResponse(
         generate(),
