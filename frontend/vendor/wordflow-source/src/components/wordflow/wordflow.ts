@@ -80,6 +80,26 @@ export interface UpdateSidebarMenuProps {
   newText?: string;
 }
 
+export interface ContextualChatSelection {
+  text: string;
+  context_before: string;
+  context_after: string;
+}
+
+export interface UpdateContextualChatProps {
+  visible: boolean;
+  open?: boolean;
+  rect?: {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+    width: number;
+    height: number;
+  };
+  selection?: ContextualChatSelection | null;
+}
+
 export interface ToastMessage {
   message: string;
   type: 'success' | 'warning' | 'error';
@@ -154,7 +174,22 @@ export class WordflowWordflow extends LitElement {
   currentDocument: DocumentPayload | null = null;
 
   @state()
-  showAgentChat = false;
+  contextualChatVisible = false;
+
+  @state()
+  contextualChatOpen = false;
+
+  @state()
+  contextualChatLeft = 0;
+
+  @state()
+  contextualChatTop = 0;
+
+  @state()
+  contextualChatSelection: ContextualChatSelection | null = null;
+
+  @state()
+  currentUserLabel = '';
 
   @query('nightjar-toast#toast-wordflow')
   toastComponent: NightjarToast | undefined;
@@ -175,6 +210,7 @@ export class WordflowWordflow extends LitElement {
 
     // Set up user info
     this.initUserID();
+    this.currentUserLabel = this.getCurrentUserLabel();
 
     // Set up the local prompt manager
     const updateLocalPrompts = (newLocalPrompts: PromptDataLocal[]) => {
@@ -250,6 +286,14 @@ export class WordflowWordflow extends LitElement {
     } else {
       return userID;
     }
+  }
+
+  getCurrentUserLabel() {
+    if (localStorage.getItem('supabase-access-token')) {
+      return 'Supabase user';
+    }
+    const userID = localStorage.getItem('user-id');
+    return userID ? `Local ${userID.slice(0, 8)}` : 'Local user';
   }
 
   /**
@@ -403,6 +447,33 @@ export class WordflowWordflow extends LitElement {
       }px`;
     }
   }
+
+  updateContextualChat = ({
+    visible,
+    open,
+    rect,
+    selection
+  }: UpdateContextualChatProps) => {
+    if (!visible || rect === undefined) {
+      this.contextualChatVisible = false;
+      this.contextualChatOpen = false;
+      return;
+    }
+
+    const padding = 12;
+    const popoverWidth = 360;
+    this.contextualChatLeft = Math.max(
+      padding,
+      Math.min(rect.left, window.innerWidth - popoverWidth - padding)
+    );
+    this.contextualChatTop = Math.max(
+      padding,
+      Math.min(rect.bottom + 8, window.innerHeight - 80)
+    );
+    this.contextualChatSelection = selection ?? null;
+    this.contextualChatVisible = true;
+    this.contextualChatOpen = Boolean(open);
+  };
 
   // ===== Event Methods ======
   sidebarMenuFooterButtonClickedHandler(e: CustomEvent<string>) {
@@ -618,6 +689,7 @@ export class WordflowWordflow extends LitElement {
               .popperSidebarBox=${this.popperSidebarBox}
               .floatingMenuBox=${this.floatingMenuBox}
               .updateSidebarMenu=${this.updateSidebarMenu}
+              .updateContextualChat=${this.updateContextualChat}
               .promptManager=${this.promptManager}
               .userConfig=${this.userConfig}
               .textGenLocalWorker=${this.textGenLocalWorker}
@@ -631,27 +703,32 @@ export class WordflowWordflow extends LitElement {
           </div>
         </div>
 
-        <button
-          class="chat-entry-button"
-          type="button"
-          aria-label="Open AI Chat"
-          @click=${() => {
-            this.showAgentChat = true;
-          }}
+        <div
+          class="contextual-chat"
+          ?is-visible=${this.contextualChatVisible}
+          ?is-open=${this.contextualChatOpen}
+          style=${`left: ${this.contextualChatLeft}px; top: ${this.contextualChatTop}px;`}
         >
-          AI Chat
-        </button>
-
-        <div class="right-panel" ?is-chat-open=${this.showAgentChat}>
-          <div class="chat-drawer" role="dialog" aria-label="AI Chat">
-            <div class="chat-drawer-header">
+          <button
+            class="contextual-chat-button"
+            type="button"
+            aria-label="Open AI Chat"
+            @mousedown=${(event: MouseEvent) => {
+              event.preventDefault();
+              this.contextualChatOpen = !this.contextualChatOpen;
+            }}
+          >
+            AI Chat
+          </button>
+          <div class="contextual-chat-popover" role="dialog" aria-label="AI Chat">
+            <div class="contextual-chat-header">
               <span>AI Chat</span>
               <button
-                class="chat-drawer-close"
+                class="contextual-chat-close"
                 type="button"
                 aria-label="Close AI Chat"
                 @click=${() => {
-                  this.showAgentChat = false;
+                  this.contextualChatOpen = false;
                 }}
               >
                 Close
@@ -660,11 +737,18 @@ export class WordflowWordflow extends LitElement {
             <wordflow-agent-chat
               .documentId=${this.currentDocument?.id ?? null}
               .documentVersionId=${this.currentDocument?.current_version_id ?? null}
+              .selection=${this.contextualChatSelection}
             ></wordflow-agent-chat>
           </div>
+        </div>
+
+        <div class="right-panel">
           <div class="top-padding"></div>
           <div class="footer-info">
             <div class="row">Version (${packageInfoJSON.version})</div>
+            <div class="row user-row" title=${this.currentUserLabel}>
+              User ${this.currentUserLabel}
+            </div>
 
             <div
               class="row"

@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import {
   sendChatMessage,
   streamChatRunEvents,
+  type ChatSelectionPayload,
   type ChatEventStream,
   type ChatRunEventPayload
 } from '../../product/chat-client';
@@ -22,6 +23,9 @@ export class WordflowAgentChat extends LitElement {
 
   @property({ type: Number })
   documentVersionId: number | null = null;
+
+  @property({ attribute: false })
+  selection: ChatSelectionPayload | null = null;
 
   @state()
   messages: ChatDisplayMessage[] = [];
@@ -58,10 +62,12 @@ export class WordflowAgentChat extends LitElement {
     this.statusText = 'Thinking';
 
     try {
-      const run = await sendChatMessage(this.documentId, {
+      const payload = {
         content,
+        selection: this.selection,
         document_version_id: this.documentVersionId
-      });
+      };
+      const run = await sendChatMessage(this.documentId, payload);
       this.eventSource = streamChatRunEvents(run.run_id, {
         onEvent: event => this.handleRunEvent(event),
         onError: () => {
@@ -75,10 +81,28 @@ export class WordflowAgentChat extends LitElement {
     } catch (error) {
       this.statusText = 'Chat unavailable';
       this.isStreaming = false;
-      this.appendAssistantDelta(
-        error instanceof Error ? error.message : 'Unable to start chat run'
-      );
+      this.appendAssistantDelta(this.formatChatError(error));
     }
+  }
+
+  formatChatError(error: unknown) {
+    const fallback = 'AI chat is unavailable. Please try again.';
+    const raw = error instanceof Error ? error.message : '';
+    if (!raw) return fallback;
+
+    try {
+      const payload = JSON.parse(raw);
+      const detail = payload.detail;
+      if (typeof detail === 'string' && !detail.includes('{')) return detail;
+      if (detail?.error_code || detail?.node_id) return fallback;
+    } catch (_) {
+      // Keep the readable raw message fallback below.
+    }
+
+    if (raw.includes('Internal Server Error') || raw.includes('E_UNHANDLED')) {
+      return fallback;
+    }
+    return raw;
   }
 
   handleRunEvent(event: ChatRunEventPayload) {
@@ -156,7 +180,11 @@ export class WordflowAgentChat extends LitElement {
         <div class="messages">
           ${this.messages.length === 0
             ? html`<div class="message assistant">
-                <div class="bubble">Ask about the current script.</div>
+                <div class="bubble">
+                  ${this.selection?.text
+                    ? 'Ask about the selected text.'
+                    : 'Ask about the current script.'}
+                </div>
               </div>`
             : this.messages.map(message => this.renderMessage(message))}
         </div>

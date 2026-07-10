@@ -102,7 +102,7 @@ describe("product runtime wiring", () => {
     expect(wordflow).toContain(".documentVersionId=");
   });
 
-  it("exposes AI chat through a visible entry and mobile drawer", () => {
+  it("exposes AI chat as a contextual editor popover", () => {
     const wordflow = readFileSync(
       resolve(process.cwd(), "vendor/wordflow-source/src/components/wordflow/wordflow.ts"),
       "utf-8",
@@ -111,16 +111,35 @@ describe("product runtime wiring", () => {
       resolve(process.cwd(), "vendor/wordflow-source/src/components/wordflow/wordflow.css"),
       "utf-8",
     );
+    const textEditor = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/text-editor/text-editor.ts"),
+      "utf-8",
+    );
+    const agentChat = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/agent-chat/agent-chat.ts"),
+      "utf-8",
+    );
 
-    expect(wordflow).toContain("showAgentChat");
-    expect(wordflow).toContain("chat-entry-button");
-    expect(wordflow).toContain("chat-drawer");
+    expect(wordflow).toContain("updateContextualChat");
+    expect(wordflow).toContain("contextual-chat");
+    expect(wordflow).toContain("contextual-chat-button");
+    expect(wordflow).toContain("contextual-chat-popover");
     expect(wordflow).toContain("AI Chat");
-    expect(wordflow).toContain("Close");
-    expect(wordflowCss).toContain(".chat-entry-button");
-    expect(wordflowCss).toContain(".chat-drawer");
-    expect(wordflowCss).toContain("is-chat-open");
+    expect(wordflow).toContain("currentUserLabel");
+    expect(wordflow).toContain("supabase-access-token");
+    expect(wordflow).not.toContain("showAgentChat");
+    expect(wordflow).not.toContain("chat-entry-button");
+    expect(wordflowCss).toContain(".contextual-chat");
+    expect(wordflowCss).toContain(".contextual-chat[is-visible]");
+    expect(wordflowCss).toContain(".contextual-chat-popover");
     expect(wordflowCss).toContain("position: fixed");
-    expect(wordflowCss).toContain("@media (max-width: 900px)");
+    expect(textEditor).toContain("updateContextualChat");
+    expect(textEditor).toContain("onSelectionUpdate");
+    expect(textEditor).toContain("contextualChatKeydownHandler");
+    expect(textEditor).toContain("posToDOMRect");
+    expect(agentChat).toContain("selection");
+    expect(agentChat).toContain("selection: this.selection");
+    expect(agentChat).toContain("formatChatError");
+    expect(agentChat).toContain("JSON.parse");
   });
 });
