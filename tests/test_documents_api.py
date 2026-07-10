@@ -115,3 +115,26 @@ def test_create_version_rejects_parent_version_from_another_document():
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Parent version not found"
+
+
+def test_create_version_rejects_explicit_zero_parent_version_id():
+    client = TestClient(app)
+    user_id = f"writer-parent-zero-{uuid4().hex}"
+    created = client.post(
+        "/api/documents",
+        headers={"X-Dev-User-Id": user_id},
+        json={"title": "Draft", "content_html": "<p>v1</p>", "content_text": "v1"},
+    ).json()
+
+    response = client.post(
+        f"/api/documents/{created['id']}/versions",
+        headers={"X-Dev-User-Id": user_id},
+        json={
+            "content_html": "<p>bad</p>",
+            "content_text": "bad",
+            "parent_version_id": 0,
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Parent version not found"

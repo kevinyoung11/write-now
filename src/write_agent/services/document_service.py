@@ -90,7 +90,11 @@ class DocumentService:
             document = session.get(Document, document_id)
             if document is None or document.user_id != user_id:
                 raise ValueError("Document not found")
-            parent_id = parent_version_id or document.current_version_id
+            parent_id = (
+                parent_version_id
+                if parent_version_id is not None
+                else document.current_version_id
+            )
             if parent_id is not None:
                 parent = session.get(DocumentVersion, parent_id)
                 if (
