@@ -153,6 +153,9 @@ export class WordflowWordflow extends LitElement {
   @state()
   currentDocument: DocumentPayload | null = null;
 
+  @state()
+  showAgentChat = false;
+
   @query('nightjar-toast#toast-wordflow')
   toastComponent: NightjarToast | undefined;
 
@@ -628,11 +631,37 @@ export class WordflowWordflow extends LitElement {
           </div>
         </div>
 
-        <div class="right-panel">
-          <wordflow-agent-chat
-            .documentId=${this.currentDocument?.id ?? null}
-            .documentVersionId=${this.currentDocument?.current_version_id ?? null}
-          ></wordflow-agent-chat>
+        <button
+          class="chat-entry-button"
+          type="button"
+          aria-label="Open AI Chat"
+          @click=${() => {
+            this.showAgentChat = true;
+          }}
+        >
+          AI Chat
+        </button>
+
+        <div class="right-panel" ?is-chat-open=${this.showAgentChat}>
+          <div class="chat-drawer" role="dialog" aria-label="AI Chat">
+            <div class="chat-drawer-header">
+              <span>AI Chat</span>
+              <button
+                class="chat-drawer-close"
+                type="button"
+                aria-label="Close AI Chat"
+                @click=${() => {
+                  this.showAgentChat = false;
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <wordflow-agent-chat
+              .documentId=${this.currentDocument?.id ?? null}
+              .documentVersionId=${this.currentDocument?.current_version_id ?? null}
+            ></wordflow-agent-chat>
+          </div>
           <div class="top-padding"></div>
           <div class="footer-info">
             <div class="row">Version (${packageInfoJSON.version})</div>
