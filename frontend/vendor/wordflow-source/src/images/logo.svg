@@ -1,20 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect x="4" y="4" width="56" height="56" rx="12" fill="currentColor" />
   <path
-    d="M9 16
-       C13 14 16.5 15.5 17 18.5
-       C19.5 25 21.5 35 23.5 42
-       C24.5 45 26 45 27 42
-       C28.5 37 29.5 30 31 25
-       C31.7 23 32.3 23 33 25
-       C34.5 30 35.5 37 37 42
-       C38 45 39.5 45 40.5 42
-       C42.5 35 44.5 25 47 18.5
-       C47.5 15.5 51 14 55 16"
+    d="M15 22
+       C17 27 19.5 35 21.5 41
+       C22.5 44 24 44 25 41
+       C26.5 36.5 27.5 30 29 25.5
+       C29.7 23.5 30.3 23.5 31 25.5
+       C32.5 30 33.5 36.5 35 41
+       C36 44 37.5 44 38.5 41
+       C40.5 35 43 27 45 22"
     fill="none"
-    stroke="#FFFFFF"
-    stroke-width="4.2"
+    stroke="currentColor"
+    stroke-width="3.4"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
+  <circle cx="15" cy="21" r="3.6" fill="currentColor" />
+  <circle cx="45" cy="21" r="3.6" fill="currentColor" />
 </svg>

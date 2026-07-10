@@ -171,7 +171,7 @@
     gap: 7px;
 
     .svg-icon {
-      color: var(--accent-600);
+      color: var(--accent-400);
       -webkit-transform: translateZ(0);
     }
 
