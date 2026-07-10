@@ -7,7 +7,7 @@ from sqlmodel import Field, SQLModel
 
 
 class AgentThread(SQLModel, table=True):
-    __tablename__ = "agent_threads"
+    __tablename__ = "agent_runtime_threads"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: str = Field(index=True)
@@ -17,4 +17,3 @@ class AgentThread(SQLModel, table=True):
     status: str = Field(default="active", index=True)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
-
