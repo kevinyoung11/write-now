@@ -126,6 +126,8 @@ class Settings(BaseSettings):
     auth_dev_email: str = "dev@example.local"
     chat_recent_message_limit: int = 12
     agent_event_replay_sleep_seconds: float = 0.2
+    agent_stream_max_seconds: float = 50.0
+    agent_chat_max_completion_tokens: int = 64
 
     # 日志配置
     log_level: str = "INFO"
