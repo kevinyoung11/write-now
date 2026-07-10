@@ -15,6 +15,7 @@ import {
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AppTopNav, Button, Input, Pagination, Textarea } from "../components";
 import { formatMessage, useLanguage } from "../i18n";
+import { SelectionAssistant } from "./home/SelectionAssistant";
 import {
   extractStyle,
   getMaterialsPage,
@@ -164,6 +165,7 @@ export const HomePage: React.FC = () => {
   const workflowAbortRef = useRef<AbortController | null>(null);
   const workflowSessionRef = useRef<number | null>(null);
   const workflowSessionSeqRef = useRef(0);
+  const sourceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const countWords = (content: string) => {
     const cleaned = content
@@ -736,10 +738,29 @@ export const HomePage: React.FC = () => {
             </div>
 
             <textarea
+              ref={sourceTextareaRef}
               className="home-v2-source-textarea"
               placeholder={homeText.sourcePlaceholder}
               value={sourceContent}
               onChange={(event) => setSourceContent(event.target.value)}
+            />
+            <SelectionAssistant
+              textareaRef={sourceTextareaRef}
+              fullText={sourceContent}
+              onApply={setSourceContent}
+              styles={styles}
+              selectedStyleId={selectedStyleId}
+              onSelectStyleId={setSelectedStyleId}
+              labels={{
+                selectionScope: (count) => t(homeText.selectionScope, { count }),
+                wholeDraftScope: homeText.wholeDraftScope,
+                stylePlaceholder: homeText.chooseStyle,
+                rewriteAction: homeText.selectionRewriteAction,
+                applyAction: homeText.selectionApplyAction,
+                discardAction: homeText.selectionDiscardAction,
+                needStyleHint: homeText.selectionNeedStyleHint,
+                shortcutHint: homeText.selectionShortcutHint,
+              }}
             />
 
             <div className="home-v2-footnote">
