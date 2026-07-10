@@ -1,4 +1,5 @@
 import { config } from '../config/config';
+import { authHeaders, parseJsonResponse } from './api-client';
 
 export interface ChatSelectionPayload {
   text: string;
@@ -26,30 +27,16 @@ export interface ChatRunEventPayload {
 
 export interface ChatStreamHandlers {
   onEvent?: (event: ChatRunEventPayload) => void;
-  onError?: (error: Event) => void;
+  onError?: (error: unknown) => void;
   onDone?: () => void;
 }
 
-function authHeaders(): HeadersInit {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const accessToken = localStorage.getItem('supabase-access-token');
-  const devUserId = localStorage.getItem('user-id');
-
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  } else if (devUserId) {
-    headers['X-Dev-User-Id'] = devUserId;
-  }
-
-  return headers;
+export interface ChatEventStream {
+  close: () => void;
 }
 
-async function parseJsonResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    throw new Error(await response.text());
-  }
-  return response.json() as Promise<T>;
-}
+const TERMINAL_EVENTS = ['run_completed', 'run_failed', 'run_cancelled'];
+const RECONNECT_DELAY_MS = 500;
 
 export async function sendChatMessage(
   documentId: number,
@@ -75,35 +62,100 @@ export function streamChatRunEvents(
   runId: number,
   handlers: ChatStreamHandlers,
   fromSeq = 0
-): EventSource {
-  const source = new EventSource(
-    `${config.urls.chatRunEventsEndpoint}/${runId}/events?from_seq=${fromSeq}`,
-    { withCredentials: true }
-  );
-  const terminalEvents = ['run_completed', 'run_failed', 'run_cancelled'];
-  const eventTypes = [
-    'run_started',
-    'message_delta',
-    'reasoning_trace',
-    'runtime_update',
-    ...terminalEvents
-  ];
+): ChatEventStream {
+  let closed = false;
+  let lastSeq = fromSeq;
+  let controller: AbortController | null = null;
 
-  for (const eventType of eventTypes) {
-    source.addEventListener(eventType, event => {
-      const payload = JSON.parse((event as MessageEvent).data);
-      handlers.onEvent?.({ ...payload, event_type: eventType });
-      if (terminalEvents.includes(eventType)) {
-        source.close();
-        handlers.onDone?.();
-      }
-    });
-  }
-
-  source.onerror = error => {
-    handlers.onError?.(error);
+  const close = () => {
+    closed = true;
+    controller?.abort();
   };
 
-  return source;
+  const connect = async () => {
+    while (!closed) {
+      try {
+        controller = new AbortController();
+        await readSseStream(
+          `${config.urls.chatRunEventsEndpoint}/${runId}/events?from_seq=${lastSeq}`,
+          controller,
+          event => {
+            if (typeof event.seq === 'number') {
+              lastSeq = event.seq;
+            }
+            handlers.onEvent?.(event);
+            if (TERMINAL_EVENTS.includes(event.event_type)) {
+              close();
+              handlers.onDone?.();
+            }
+          }
+        );
+      } catch (error) {
+        if (!closed) {
+          handlers.onError?.(error);
+          await sleep(RECONNECT_DELAY_MS);
+          fromSeq = lastSeq;
+        }
+      }
+    }
+  };
+
+  void connect();
+  return { close };
+}
+
+async function readSseStream(
+  url: string,
+  controller: AbortController,
+  onEvent: (event: ChatRunEventPayload) => void
+) {
+  const response = await fetch(url, {
+    headers: authHeaders(false),
+    signal: controller.signal
+  });
+  if (!response.ok || response.body === null) {
+    throw new Error(await response.text());
+  }
+
+  const reader: ReadableStreamDefaultReader<Uint8Array> =
+    response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() ?? '';
+    for (const part of parts) {
+      const event = parseSseEvent(part);
+      if (event !== null) onEvent(event);
+    }
+  }
+}
+
+function parseSseEvent(chunk: string): ChatRunEventPayload | null {
+  const eventType = chunk
+    .split('\n')
+    .find(line => line.startsWith('event: '))
+    ?.replace('event: ', '')
+    .trim();
+  const dataLine = chunk
+    .split('\n')
+    .find(line => line.startsWith('data: '))
+    ?.replace('data: ', '');
+  if (!eventType || !dataLine) return null;
+
+  const payload = JSON.parse(dataLine);
+  const normalizedEventType =
+    eventType === 'reasoning_delta' || eventType === 'reasoning_completed'
+      ? 'reasoning_trace'
+      : eventType;
+  return { ...payload, event_type: normalizedEventType };
+}
+
+function sleep(milliseconds: number) {
+  return new Promise(resolve => window.setTimeout(resolve, milliseconds));
 }
 

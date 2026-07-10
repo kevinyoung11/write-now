@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import {
   sendChatMessage,
   streamChatRunEvents,
+  type ChatEventStream,
   type ChatRunEventPayload
 } from '../../product/chat-client';
 
@@ -34,7 +35,7 @@ export class WordflowAgentChat extends LitElement {
   @state()
   statusText = 'Document chat';
 
-  eventSource: EventSource | null = null;
+  eventSource: ChatEventStream | null = null;
 
   willUpdate(changedProperties: PropertyValues<this>) {}
 
@@ -64,8 +65,7 @@ export class WordflowAgentChat extends LitElement {
       this.eventSource = streamChatRunEvents(run.run_id, {
         onEvent: event => this.handleRunEvent(event),
         onError: () => {
-          this.statusText = 'Connection interrupted';
-          this.isStreaming = false;
+          this.statusText = 'Reconnecting';
         },
         onDone: () => {
           this.statusText = 'Document chat';
@@ -186,4 +186,3 @@ export class WordflowAgentChat extends LitElement {
     ${unsafeCSS(componentCSS)}
   `;
 }
-

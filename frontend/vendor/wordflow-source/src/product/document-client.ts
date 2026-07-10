@@ -1,4 +1,5 @@
 import { config } from '../config/config';
+import { authHeaders, parseJsonResponse } from './api-client';
 
 export interface DocumentVersionPayload {
   id: number;
@@ -19,13 +20,6 @@ export interface DocumentPayload {
   current_version: DocumentVersionPayload;
 }
 
-async function parseJsonResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    throw new Error(await response.text());
-  }
-  return response.json() as Promise<T>;
-}
-
 export async function createDocument(
   title: string,
   contentHtml: string,
@@ -33,7 +27,7 @@ export async function createDocument(
 ): Promise<DocumentPayload> {
   const response = await fetch(config.urls.documentsEndpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify({
       title,
       content_html: contentHtml,
@@ -55,9 +49,8 @@ export async function createDocumentVersion(
 ): Promise<DocumentVersionPayload> {
   const response = await fetch(`${config.urls.documentsEndpoint}/${documentId}/versions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(payload)
   });
   return parseJsonResponse<DocumentVersionPayload>(response);
 }
-

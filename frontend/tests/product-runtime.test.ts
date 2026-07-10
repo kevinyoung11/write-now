@@ -26,6 +26,30 @@ describe("product runtime wiring", () => {
     expect(client).toContain("createDocumentVersion");
   });
 
+  it("uses the same authenticated product client for documents and chat streams", () => {
+    const apiClient = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/product/api-client.ts"),
+      "utf-8",
+    );
+    const documentClient = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/product/document-client.ts"),
+      "utf-8",
+    );
+    const chatClient = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/product/chat-client.ts"),
+      "utf-8",
+    );
+
+    expect(documentClient).toContain("authHeaders");
+    expect(apiClient).toContain("X-Dev-User-Id");
+    expect(chatClient).toContain("authHeaders(false)");
+    expect(chatClient).not.toContain("new EventSource");
+    expect(chatClient).toContain("ReadableStreamDefaultReader");
+    expect(chatClient).toContain("fromSeq = lastSeq");
+    expect(chatClient).toContain("reasoning_delta");
+    expect(chatClient).toContain("reasoning_completed");
+  });
+
   it("emits accepted AI edit events for version saving", () => {
     const textEditor = readFileSync(
       resolve(process.cwd(), "vendor/wordflow-source/src/components/text-editor/text-editor.ts"),
@@ -64,7 +88,7 @@ describe("product runtime wiring", () => {
     );
 
     expect(chatClient).toContain("sendChatMessage");
-    expect(chatClient).toContain("EventSource");
+    expect(chatClient).toContain("streamChatRunEvents");
     expect(chatClient).toContain("document_version_id");
     expect(agentChat).toContain("wordflow-agent-chat");
     expect(agentChat).toContain("reasoning_trace");
