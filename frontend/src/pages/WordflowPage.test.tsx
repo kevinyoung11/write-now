@@ -3,8 +3,6 @@ import { resolve } from "node:path";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import { AppTopNav } from "../components/AppTopNav";
-import { LanguageProvider } from "../i18n";
 
 describe("WordflowPage", () => {
   it("renders the Wordflow iframe shell", async () => {
@@ -37,20 +35,6 @@ describe("vendored Wordflow assets", () => {
   });
 });
 
-describe("AppTopNav", () => {
-  it("keeps the rewrite navigation item pointed at the write agent route", () => {
-    const html = renderToString(
-      <LanguageProvider>
-        <MemoryRouter>
-          <AppTopNav />
-        </MemoryRouter>
-      </LanguageProvider>,
-    );
-
-    expect(html).toContain('href="/write-agent"');
-  });
-});
-
 describe("App routes", () => {
   const renderRoute = async (path: string) => {
     const appModule = await import("../App");
@@ -59,11 +43,9 @@ describe("App routes", () => {
     expect(AppRoutes).toBeTypeOf("function");
 
     return renderToString(
-      <LanguageProvider>
-        <MemoryRouter initialEntries={[path]}>
-          <AppRoutes />
-        </MemoryRouter>
-      </LanguageProvider>,
+      <MemoryRouter initialEntries={[path]}>
+        <AppRoutes />
+      </MemoryRouter>,
     );
   };
 
@@ -74,27 +56,22 @@ describe("App routes", () => {
     expect(html).toContain('title="Wordflow editor"');
   });
 
-  it("keeps the existing writing agent on /write-agent", async () => {
-    const html = await renderRoute("/write-agent");
-
-    expect(html).toContain('class="home-v2-page"');
-    expect(html).not.toContain('src="/wordflow/index.html"');
-  });
-
   it.each([
-    ["/styles", 'class="styles-v2-page"'],
-    ["/materials", 'class="materials-v2-page"'],
-    ["/reviews", 'class="reviews-v2-page"'],
-    ["/covers", 'class="covers-v2-page"'],
-    ["/github-trends", 'class="github-trends-page"'],
-    ["/linuxdo-trends", 'class="linuxdo-trends-page"'],
-    ["/hot-topics", 'class="xhs-trends-page"'],
-    ["/xhs-trends", 'class="xhs-trends-page"'],
-    ["/layout", "Loading layout..."],
-  ])("keeps the existing route %s", async (path, expectedMarker) => {
+    "/write-agent",
+    "/styles",
+    "/materials",
+    "/reviews",
+    "/covers",
+    "/github-trends",
+    "/linuxdo-trends",
+    "/hot-topics",
+    "/xhs-trends",
+    "/layout",
+  ])("routes legacy path %s to Wordflow", async (path) => {
     const html = await renderRoute(path);
 
-    expect(html).toContain(expectedMarker);
-    expect(html).not.toContain('src="/wordflow/index.html"');
+    expect(html).toContain('src="/wordflow/index.html"');
+    expect(html).toContain('title="Wordflow editor"');
+    expect(html).not.toContain('class="home-v2-page"');
   });
 });
