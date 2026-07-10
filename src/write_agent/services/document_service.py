@@ -28,8 +28,7 @@ class DocumentService:
         with Session(engine, expire_on_commit=False) as session:
             document = Document(user_id=user_id, title=title or "Untitled")
             session.add(document)
-            session.commit()
-            session.refresh(document)
+            session.flush()
 
             version = DocumentVersion(
                 document_id=int(document.id),
@@ -41,14 +40,14 @@ class DocumentService:
                 reason="initial document",
             )
             session.add(version)
-            session.commit()
-            session.refresh(version)
+            session.flush()
 
             document.current_version_id = version.id
             document.updated_at = datetime.now()
             session.add(document)
             session.commit()
             session.refresh(document)
+            session.refresh(version)
             return document, version
 
     def list_documents(self, *, user_id: str) -> list[Document]:
@@ -92,6 +91,14 @@ class DocumentService:
             if document is None or document.user_id != user_id:
                 raise ValueError("Document not found")
             parent_id = parent_version_id or document.current_version_id
+            if parent_id is not None:
+                parent = session.get(DocumentVersion, parent_id)
+                if (
+                    parent is None
+                    or parent.user_id != user_id
+                    or parent.document_id != document_id
+                ):
+                    raise ValueError("Parent version not found")
             version = DocumentVersion(
                 document_id=document_id,
                 user_id=user_id,
@@ -102,12 +109,12 @@ class DocumentService:
                 reason=reason,
             )
             session.add(version)
-            session.commit()
-            session.refresh(version)
+            session.flush()
             document.current_version_id = version.id
             document.updated_at = datetime.now()
             session.add(document)
             session.commit()
+            session.refresh(version)
             return version
 
     def list_versions(self, *, user_id: str, document_id: int) -> list[DocumentVersion]:
