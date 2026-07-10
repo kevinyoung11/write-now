@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     openai_wire_api: str = "chat_completions"  # chat_completions|responses
     openai_reasoning_effort: str = ""
     openai_disable_response_storage: bool = False
+    google_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("GOOGLE_API_KEY", "GEMINI_API_KEY", "PALM_API_KEY"),
+    )
+    wordflow_remote_endpoint: str = (
+        "https://62uqq9jku8.execute-api.us-east-1.amazonaws.com/prod/records"
+    )
     enable_schedulers: bool = True
 
     # 硅基流动 Embedding API 配置

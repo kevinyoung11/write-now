@@ -1,8 +1,4 @@
-import type {
-  ChatCompletion,
-  ResponsesCompletion,
-  ResponsesCompletionRequest
-} from '../types/gpt-types';
+import { config } from '../config/config';
 
 export type TextGenMessage =
   | {
@@ -44,29 +40,84 @@ export type GptModel =
   | 'gpt-5'
   | 'gpt-4.1';
 
-const extractResponseText = (data: ChatCompletion | ResponsesCompletion) => {
-  if ('output_text' in data && data.output_text) {
-    return data.output_text;
+export type TextGenProvider = 'openai' | 'gemini' | 'palm';
+
+const textGenEndpoint = config.urls.textGenEndpoint;
+
+export const textGenBackend = async (
+  provider: TextGenProvider,
+  apiKey: string,
+  requestID: string,
+  prompt: string,
+  temperature: number,
+  model: string,
+  useCache: boolean = false,
+  stopSequences: string[] = [],
+  detail: string = '',
+  cachePrefix: string = `[${provider}]`
+) => {
+  const cachedValue = localStorage.getItem(cachePrefix + prompt);
+  if (useCache && cachedValue !== null) {
+    console.log('Use cached output (text gen)');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const message: TextGenMessage = {
+      command: 'finishTextGen',
+      payload: {
+        requestID,
+        apiKey,
+        result: cachedValue,
+        prompt,
+        detail
+      }
+    };
+    return message;
   }
 
-  if ('output' in data && data.output !== undefined) {
-    const text = data.output
-      .flatMap(item => item.content ?? [])
-      .filter(item => item.type === 'output_text' && item.text !== undefined)
-      .map(item => item.text)
-      .join('');
-
-    if (text !== '') {
-      return text;
+  try {
+    const response = await fetch(textGenEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        provider,
+        request_id: requestID,
+        prompt,
+        temperature,
+        model,
+        stop_sequences: stopSequences,
+        detail,
+        api_key: apiKey
+      })
+    });
+    const data = await response.json();
+    if (response.status !== 200) {
+      const detailMessage =
+        typeof data?.detail === 'string' ? data.detail : JSON.stringify(data);
+      throw Error(detailMessage);
     }
-  }
 
-  const messageContent = data.choices?.[0]?.message.content;
-  if (messageContent !== undefined) {
-    return messageContent;
+    const message = data as TextGenMessage;
+    if (
+      message.command === 'finishTextGen' &&
+      useCache &&
+      localStorage.getItem(cachePrefix + prompt) === null
+    ) {
+      localStorage.setItem(cachePrefix + prompt, message.payload.result);
+    }
+    return message;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const message: TextGenMessage = {
+      command: 'error',
+      payload: {
+        requestID,
+        originalCommand: 'startTextGen',
+        message: errorMessage
+      }
+    };
+    return message;
   }
-
-  throw Error('GPT API error: response did not include final text');
 };
 
 export const textGenGpt = async (
@@ -79,85 +130,21 @@ export const textGenGpt = async (
   stopSequences: string[] = [],
   detail: string = ''
 ) => {
-  const body: ResponsesCompletionRequest = {
-    model,
-    input: prompt
-  };
-
   if (stopSequences.length > 0) {
     console.warn(
-      'Ignoring stop sequences because the Responses API does not support the stop parameter.'
+      'Stop sequences are forwarded to the backend model proxy when supported.'
     );
   }
-
-  // Check if the model output is cached
-  const cachedValue = localStorage.getItem('[gpt]' + prompt);
-  if (useCache && cachedValue !== null) {
-    console.log('Use cached output (text gen)');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    // await new Promise(resolve => setTimeout(resolve, 100000));
-    const message: TextGenMessage = {
-      command: 'finishTextGen',
-      payload: {
-        requestID,
-        apiKey,
-        result: cachedValue,
-        prompt: prompt,
-        detail: detail
-      }
-    };
-    return message;
-  }
-
-  const url = 'https://api.openai.com/v1/responses';
-
-  const requestOptions: RequestInit = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify(body)
-  };
-
-  try {
-    const response = await fetch(url, requestOptions);
-    const data = (await response.json()) as ResponsesCompletion;
-    if (response.status !== 200) {
-      throw Error('GPT API error' + JSON.stringify(data));
-    }
-
-    const result = extractResponseText(data);
-
-    // Send back the data to the main thread
-    const message: TextGenMessage = {
-      command: 'finishTextGen',
-      payload: {
-        requestID,
-        apiKey,
-        result,
-        prompt: prompt,
-        detail: detail
-      }
-    };
-
-    // Also cache the model output
-    if (useCache && localStorage.getItem('[gpt]' + prompt) === null) {
-      localStorage.setItem('[gpt]' + prompt, result);
-    }
-    return message;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    // Throw the error to the main thread
-    const message: TextGenMessage = {
-      command: 'error',
-      payload: {
-        requestID,
-        originalCommand: 'startTextGen',
-        message: errorMessage
-      }
-    };
-    return message;
-  }
+  return textGenBackend(
+    'openai',
+    apiKey,
+    requestID,
+    prompt,
+    temperature,
+    model,
+    useCache,
+    stopSequences,
+    detail,
+    '[gpt]'
+  );
 };

@@ -8,6 +8,7 @@ import componentCSS from './modal-auth.css?inline';
 
 const USE_CACHE = true;
 const SUCCESS_MESSAGE = 'API key added.';
+const BACKEND_GPT_API_KEY = 'backend-managed';
 
 type Model = 'palm' | 'gpt';
 
@@ -60,9 +61,12 @@ export class WordflowModalAuth extends LitElement {
       const models: Model[] = ['palm', 'gpt'];
 
       for (const model of models) {
-        const apiKey = USE_CACHE
-          ? localStorage.getItem(`${model}APIKey`)
-          : null;
+        const apiKey =
+          model === 'gpt'
+            ? BACKEND_GPT_API_KEY
+            : USE_CACHE
+              ? localStorage.getItem(`${model}APIKey`)
+              : null;
 
         if (apiKey === null) {
           this.modelSetMap[model] = false;
@@ -221,7 +225,7 @@ export class WordflowModalAuth extends LitElement {
           this.authVerificationSucceeded(
             model,
             messageElement,
-            message.payload.apiKey
+            message.payload.apiKey || BACKEND_GPT_API_KEY
           );
         }
         break;

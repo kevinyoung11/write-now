@@ -2,6 +2,15 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+function readWordflowBundle() {
+  const indexHtml = readFileSync(resolve(process.cwd(), "public/wordflow/index.html"), "utf-8");
+  const match = indexHtml.match(/src="\/wordflow\/(assets\/main-[^"]+\.js)"/);
+
+  expect(match?.[1]).toBeDefined();
+
+  return readFileSync(resolve(process.cwd(), "public/wordflow", match![1]), "utf-8");
+}
+
 describe("Wordflow root app", () => {
   it("uses Wordflow as the root document without an iframe shell", () => {
     const indexHtml = readFileSync(resolve(process.cwd(), "index.html"), "utf-8");
@@ -33,5 +42,42 @@ describe("Wordflow root app", () => {
     const readme = readFileSync(resolve(process.cwd(), "README.md"), "utf-8");
 
     expect(readme).not.toMatch(/React|@vitejs\/plugin-react|YanQue|砚雀|write-agent|write_agent/);
+  });
+
+  it("routes Wordflow remote calls through this backend", () => {
+    const gptSource = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/llms/gpt.ts"),
+      "utf-8",
+    );
+    const configSource = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/config/config.ts"),
+      "utf-8",
+    );
+    const authSource = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/modal-auth/modal-auth.ts"),
+      "utf-8",
+    );
+    const bundle = readWordflowBundle();
+
+    expect(gptSource).toContain("config.urls.textGenEndpoint");
+    expect(gptSource).toContain("fetch(textGenEndpoint");
+    expect(configSource).toContain("/api/wordflow/text-gen");
+    expect(configSource).toContain("/api/wordflow/records");
+    expect(authSource).toContain("BACKEND_GPT_API_KEY");
+    expect(bundle.includes("/api/wordflow/text-gen")).toBe(true);
+    expect(bundle.includes("/api/wordflow/records")).toBe(true);
+    expect(bundle.includes("backend-managed")).toBe(true);
+    expect(bundle.includes("https://api.openai.com/v1/responses")).toBe(false);
+    expect(bundle.includes("https://generativelanguage.googleapis.com")).toBe(false);
+    expect(
+      bundle.includes("https://62uqq9jku8.execute-api.us-east-1.amazonaws.com/prod/records"),
+    ).toBe(false);
+  });
+
+  it("proxies API calls to the backend during local frontend development", () => {
+    const viteConfig = readFileSync(resolve(process.cwd(), "vite.config.ts"), "utf-8");
+
+    expect(viteConfig).toContain("'/api'");
+    expect(viteConfig).toContain("http://127.0.0.1:8000");
   });
 });

@@ -421,7 +421,10 @@ export class WordflowPanelSetting extends LitElement {
         SupportedRemoteModel[select.value as keyof typeof SupportedRemoteModel];
       this.apiInputValue = this.userConfig.llmAPIKeys[this.selectedModelFamily];
 
-      if (this.selectedModel === SupportedRemoteModel['gpt-5-nano-free']) {
+      if (
+        this.selectedModel === SupportedRemoteModel['gpt-5-nano-free'] ||
+        this.selectedModelFamily === ModelFamily.openAI
+      ) {
         this.userConfigManager.setPreferredLLM(this.selectedModel);
       } else if (this.userConfig.llmAPIKeys[this.selectedModelFamily] !== '') {
         // Save the preferred LLM if its API is set.
