@@ -59,6 +59,18 @@ const DEV_MODE = import.meta.env.DEV;
 const USE_CACHE = true && DEV_MODE;
 const DMP = new DiffMatchPatch();
 
+export interface AiEditContext {
+  action: string;
+  scope: 'selection' | 'paragraph';
+  selected_text: string;
+  result_text: string;
+}
+
+export interface DocumentSnapshot {
+  content_html: string;
+  content_text: string;
+}
+
 /**
  * Text editor element.
  *
@@ -105,6 +117,7 @@ export class WordflowTextEditor extends LitElement {
 
   editor: Editor | null = null;
   curEditID = 0;
+  lastAiEditContext: AiEditContext | null = null;
 
   containerBBox: DOMRect = {
     x: 0,
@@ -708,10 +721,19 @@ export class WordflowTextEditor extends LitElement {
     };
   }
 
+  getCleanDocumentSnapshot(): DocumentSnapshot {
+    const snapshot = this.getDocumentSnapshot();
+    return this._cleanDiffHtmlSnapshot(snapshot.content_html);
+  }
+
   dispatchAiEditAccepted(detail: {
     action: string;
+    document_id: number;
+    base_version_id: number;
     content_html: string;
     content_text: string;
+    selected_text: string;
+    result_text: string;
   }) {
     this.dispatchEvent(
       new CustomEvent('ai-edit-accepted', {
@@ -845,6 +867,12 @@ export class WordflowTextEditor extends LitElement {
                 newText = oldText + '\n' + newText;
               }
             }
+            this.lastAiEditContext = {
+              action: this._promptActionKey(promptData),
+              scope: 'paragraph',
+              selected_text: oldText,
+              result_text: newText
+            };
 
             let diffText = this.diffParagraph(oldText, newText);
             diffText = `<p>${diffText}</p>`;
@@ -932,6 +960,12 @@ export class WordflowTextEditor extends LitElement {
             if (promptData.injectionMode === 'append') {
               newText = oldText + ' ' + newText;
             }
+            this.lastAiEditContext = {
+              action: this._promptActionKey(promptData),
+              scope: 'selection',
+              selected_text: oldText,
+              result_text: newText
+            };
 
             let diffText = this.diffParagraph(oldText, newText);
             diffText = `${diffText}`;
@@ -982,6 +1016,43 @@ export class WordflowTextEditor extends LitElement {
   //==========================================================================||
   //                             Private Helpers                              ||
   //==========================================================================||
+
+  _cleanDiffHtmlSnapshot(contentHtml: string): DocumentSnapshot {
+    const template = document.createElement('template');
+    template.innerHTML = contentHtml;
+
+    for (const mark of Array.from(template.content.querySelectorAll('mark'))) {
+      const oldText = mark.getAttribute('data-old-text') ?? '';
+      if (oldText.length > 0) {
+        mark.replaceWith(document.createTextNode(oldText));
+      } else {
+        mark.remove();
+      }
+    }
+
+    for (const collapse of Array.from(
+      template.content.querySelectorAll('span[data-type="collapse"]')
+    )) {
+      collapse.replaceWith(
+        document.createTextNode(collapse.getAttribute('deleted-text') ?? '')
+      );
+    }
+
+    const container = document.createElement('div');
+    container.append(template.content.cloneNode(true));
+    return {
+      content_html: container.innerHTML,
+      content_text: container.textContent ?? ''
+    };
+  }
+
+  _promptActionKey(promptData: PromptDataLocal) {
+    const scriptAction = promptData.tags?.find(tag =>
+      ['expand', 'rewrite', 'oralize', 'shorten'].includes(tag)
+    );
+    if (scriptAction) return scriptAction;
+    return promptData.key.replace(/^script-action-/, '') || promptData.title;
+  }
 
   /**
    * Run the given prompt using the preferred model

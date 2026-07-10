@@ -8,7 +8,11 @@ import {
 } from 'lit/decorators.js';
 import { random } from '@xiaohk/utils';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { WordflowTextEditor } from '../text-editor/text-editor';
+import {
+  WordflowTextEditor,
+  type AiEditContext,
+  type DocumentSnapshot
+} from '../text-editor/text-editor';
 import { v4 as uuidv4, validate } from 'uuid';
 import { config } from '../../config/config';
 import {
@@ -419,19 +423,21 @@ export class WordflowWordflow extends LitElement {
   sidebarMenuFooterButtonClickedHandler(e: CustomEvent<string>) {
     // Delegate the event to the text editor component
     if (!this.textEditorElement) return;
-    const action = e.detail;
-    const beforeSnapshot = this.textEditorElement.getDocumentSnapshot();
+    const buttonAction = e.detail;
+    const editContext = this.textEditorElement.lastAiEditContext ?? {
+      action: 'ai',
+      scope: 'selection',
+      selected_text: '',
+      result_text: ''
+    };
+    const beforeSnapshot = this.textEditorElement.getCleanDocumentSnapshot();
     this.textEditorElement.sidebarMenuFooterButtonClickedHandler(e);
-    const afterSnapshot = this.textEditorElement.getDocumentSnapshot();
+    const afterSnapshot = this.textEditorElement.getCleanDocumentSnapshot();
 
-    if (action === 'accept' || action === 'accept-all') {
-      this.textEditorElement.dispatchAiEditAccepted({
-        action,
-        ...afterSnapshot
-      });
-      void this.saveAcceptedAiEdit(action, beforeSnapshot, afterSnapshot);
-    } else if (action === 'reject' || action === 'reject-all') {
-      this.textEditorElement.dispatchAiEditRejected(action);
+    if (buttonAction === 'accept' || buttonAction === 'accept-all') {
+      void this.saveAcceptedAiEdit(editContext, beforeSnapshot, afterSnapshot);
+    } else if (buttonAction === 'reject' || buttonAction === 'reject-all') {
+      this.textEditorElement.dispatchAiEditRejected(editContext.action);
     }
   }
 
@@ -448,7 +454,7 @@ export class WordflowWordflow extends LitElement {
   async initializeCurrentDocument() {
     if (!this.textEditorElement || this.currentDocument !== null) return;
     try {
-      const snapshot = this.textEditorElement.getDocumentSnapshot();
+      const snapshot = this.textEditorElement.getCleanDocumentSnapshot();
       await this.ensureDocument(snapshot.content_html, snapshot.content_text);
     } catch (error) {
       console.error('Failed to initialize document', error);
@@ -456,21 +462,38 @@ export class WordflowWordflow extends LitElement {
   }
 
   async saveAcceptedAiEdit(
-    action: string,
-    beforeSnapshot: { content_html: string; content_text: string },
-    afterSnapshot: { content_html: string; content_text: string }
+    editContext: AiEditContext,
+    beforeSnapshot: DocumentSnapshot,
+    afterSnapshot: DocumentSnapshot
   ) {
+    if (
+      beforeSnapshot.content_text === afterSnapshot.content_text &&
+      beforeSnapshot.content_html === afterSnapshot.content_html
+    ) {
+      return;
+    }
+
     try {
       const document = await this.ensureDocument(
         beforeSnapshot.content_html,
         beforeSnapshot.content_text
       );
+      const baseVersionId = document.current_version_id;
       const version = await createDocumentVersion(document.id, {
         content_html: afterSnapshot.content_html,
         content_text: afterSnapshot.content_text,
         source: 'ai_action',
-        reason: `${action || 'ai'} selection`,
-        parent_version_id: document.current_version_id
+        reason: `${editContext.action} ${editContext.scope}`,
+        parent_version_id: baseVersionId
+      });
+      this.textEditorElement?.dispatchAiEditAccepted({
+        action: editContext.action,
+        document_id: document.id,
+        base_version_id: baseVersionId,
+        content_html: afterSnapshot.content_html,
+        content_text: afterSnapshot.content_text,
+        selected_text: editContext.selected_text,
+        result_text: editContext.result_text
       });
       this.currentDocument = {
         ...document,

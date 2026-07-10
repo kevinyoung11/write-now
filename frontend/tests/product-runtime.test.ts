@@ -38,7 +38,15 @@ describe("product runtime wiring", () => {
 
     expect(textEditor).toContain("ai-edit-accepted");
     expect(textEditor).toContain("ai-edit-rejected");
+    expect(textEditor).toContain("getCleanDocumentSnapshot");
+    expect(textEditor).toContain("lastAiEditContext");
     expect(wordflow).toContain("createDocumentVersion");
+    expect(wordflow).toContain("selected_text");
+    expect(wordflow).toContain("result_text");
+    expect(wordflow).toContain("base_version_id");
+    expect(wordflow).toContain("document_id");
+    expect(wordflow).toContain("beforeSnapshot.content_text === afterSnapshot.content_text");
+    expect(wordflow).toContain("`${editContext.action} ${editContext.scope}`");
   });
 
   it("wires document-scoped streaming chat into the wordflow shell", () => {
