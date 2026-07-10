@@ -1,6 +1,6 @@
 .wordflow {
   width: 100%;
-  min-height: 100%;
+  min-height: 100dvh;
 
   position: relative;
   display: flex;
@@ -189,11 +189,93 @@
   display: flex;
   width: 100%;
   height: 100%;
+  position: relative;
 
   & wordflow-text-editor {
     width: 100%;
     height: 100%;
   }
+}
+
+.auth-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 96px 24px 24px;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--gray-50), transparent 8%);
+  backdrop-filter: blur(2px);
+}
+
+.auth-gate-panel {
+  width: min(420px, 100%);
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 12px 34px hsla(0, 0%, 0%, 0.12);
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.auth-gate-panel h2 {
+  margin: 0 0 8px;
+  color: var(--gray-900);
+  font-size: var(--font-u1);
+  line-height: 1.2;
+}
+
+.auth-gate-panel p {
+  margin: 0 0 14px;
+  color: var(--gray-600);
+  font-size: var(--font-d2);
+  line-height: 1.45;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: var(--gray-900);
+  font: inherit;
+  font-size: var(--font-d2);
+  line-height: 1.2;
+  box-sizing: border-box;
+}
+
+.auth-error {
+  color: var(--red-700);
+  font-size: var(--font-d3);
+  line-height: 1.35;
+}
+
+.auth-submit {
+  min-height: 42px;
+  border: 1px solid var(--gray-900);
+  border-radius: 6px;
+  background: var(--gray-900);
+  color: white;
+  font: inherit;
+  font-size: var(--font-d2);
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.auth-submit:disabled {
+  opacity: 0.65;
+  cursor: progress;
 }
 
 .popper-box {
@@ -229,37 +311,6 @@
 
 wordflow-sidebar-menu {
   width: 100%;
-}
-
-.floating-menu-box {
-  z-index: 3;
-  position: relative;
-
-  grid-row: 1 / 2;
-  grid-column: 2 / 3;
-
-  display: flex;
-  justify-content: center;
-  box-sizing: border-box;
-  width: max-content;
-  height: max-content;
-  margin-left: 100%;
-
-  /* Need to use translate3d for a safari sticky bug */
-  /* https://stackoverflow.com/questions/50224855/not-respecting-z-index-on-safari-with-position-sticky */
-  transform: translate3d(-50%, -50%, 0);
-
-  opacity: 1;
-  transition:
-    opacity 150ms,
-    transform 150ms;
-
-  &.hidden {
-    opacity: 0;
-  }
-}
-
-wordflow-floating-menu {
 }
 
 .popper-tooltip {
@@ -365,8 +416,23 @@ wordflow-setting-window {
   transform: translateY(0);
 }
 
-.contextual-chat-button {
+.contextual-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   border: 1px solid var(--gray-300);
+  border-radius: 999px;
+  background: white;
+  box-shadow:
+    0 8px 24px hsla(0, 0%, 0%, 0.14),
+    0 1px 2px hsla(0, 0%, 0%, 0.12);
+  padding: 4px;
+}
+
+.contextual-chat-button {
+  border: 0;
   border-radius: 999px;
   background: var(--gray-900);
   color: white;
@@ -374,11 +440,12 @@ wordflow-setting-window {
   font-size: var(--font-d3);
   font-weight: 700;
   line-height: 1;
-  padding: 8px 10px;
-  box-shadow:
-    0 8px 24px hsla(0, 0%, 0%, 0.14),
-    0 1px 2px hsla(0, 0%, 0%, 0.12);
+  padding: 9px 11px;
   cursor: pointer;
+}
+
+.contextual-toolbar wordflow-floating-menu {
+  display: block;
 }
 
 .contextual-chat-popover {
@@ -425,7 +492,7 @@ wordflow-setting-window {
 @media (max-width: 900px) {
   .wordflow {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto minmax(0, 1fr);
     justify-content: stretch;
     overflow-x: hidden;
   }
@@ -455,15 +522,25 @@ wordflow-setting-window {
   .center-panel {
     grid-column: 1 / 2;
     grid-row: 2 / 3;
-    min-height: 58vh;
+    min-height: calc(100dvh - 48px);
+    height: auto;
     border-left: 0;
     border-right: 0;
   }
 
   .right-panel {
     grid-column: 1 / 2;
-    grid-row: 3 / 4;
+    grid-row: 1 / 2;
     width: 100%;
+    pointer-events: none;
+  }
+
+  .auth-gate {
+    padding: 18px 16px 16px;
+  }
+
+  .auth-submit {
+    min-height: 42px;
   }
 
   .contextual-chat {
