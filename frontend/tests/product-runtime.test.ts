@@ -101,4 +101,26 @@ describe("product runtime wiring", () => {
     expect(wordflow).toContain(".documentId=");
     expect(wordflow).toContain(".documentVersionId=");
   });
+
+  it("exposes AI chat through a visible entry and mobile drawer", () => {
+    const wordflow = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/wordflow/wordflow.ts"),
+      "utf-8",
+    );
+    const wordflowCss = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/wordflow/wordflow.css"),
+      "utf-8",
+    );
+
+    expect(wordflow).toContain("showAgentChat");
+    expect(wordflow).toContain("chat-entry-button");
+    expect(wordflow).toContain("chat-drawer");
+    expect(wordflow).toContain("AI Chat");
+    expect(wordflow).toContain("Close");
+    expect(wordflowCss).toContain(".chat-entry-button");
+    expect(wordflowCss).toContain(".chat-drawer");
+    expect(wordflowCss).toContain("is-chat-open");
+    expect(wordflowCss).toContain("position: fixed");
+    expect(wordflowCss).toContain("@media (max-width: 900px)");
+  });
 });
