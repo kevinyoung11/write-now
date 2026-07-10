@@ -17,6 +17,7 @@ from .observability_event import ObservabilityEvent
 from .workflow_job import WorkflowJob
 from .workflow_job_event import WorkflowJobEvent
 from .rewrite_chunk import RewriteChunk
+from .user import User
 
 __all__ = [
     "WritingStyle",
@@ -35,4 +36,5 @@ __all__ = [
     "WorkflowJob",
     "WorkflowJobEvent",
     "RewriteChunk",
+    "User",
 ]
