@@ -1,7 +1,7 @@
 .panel-setting {
   --padding-h: 20px;
   --padding-v: 12px;
-  --focus-border-color: var(--blue-200);
+  --focus-border-color: var(--accent-200);
 
   width: 100%;
   height: 100%;
@@ -314,18 +314,18 @@ button {
   align-items: center;
   padding: 0px 12px;
 
-  background-color: var(--green-600);
+  background-color: var(--accent-600);
   color: white;
   border-radius: 5px;
   font-weight: 500;
   cursor: pointer;
 
   &:hover {
-    background-color: color-mix(in lab, var(--green-600), white 7%);
+    background-color: color-mix(in lab, var(--accent-600), white 7%);
   }
 
   &:active {
-    background-color: color-mix(in lab, var(--green-600), white 0%);
+    background-color: color-mix(in lab, var(--accent-600), white 0%);
   }
 
   &[has-set] {

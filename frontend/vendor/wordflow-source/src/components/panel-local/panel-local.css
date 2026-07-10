@@ -93,18 +93,18 @@ button {
       padding: 0px 12px;
       margin: 1px 0;
 
-      background-color: var(--green-600);
+      background-color: var(--accent-600);
       color: white;
       border-radius: 5px;
       font-weight: 500;
       cursor: pointer;
 
       &:hover {
-        background-color: color-mix(in lab, var(--green-600), white 7%);
+        background-color: color-mix(in lab, var(--accent-600), white 7%);
       }
 
       &:active {
-        background-color: color-mix(in lab, var(--green-600), white 0%);
+        background-color: color-mix(in lab, var(--accent-600), white 0%);
       }
     }
   }
@@ -148,7 +148,7 @@ button {
   background-color: white;
 
   &:has(input:focus) {
-    border: 1px solid var(--blue-500);
+    border: 1px solid var(--accent-500);
   }
 
   & input {

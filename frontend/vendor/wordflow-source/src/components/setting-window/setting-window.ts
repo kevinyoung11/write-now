@@ -10,8 +10,7 @@ import {
   customElement,
   property,
   state,
-  query,
-  queryAsync
+  query
 } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { PromptManager } from '../wordflow/prompt-manager';
@@ -20,7 +19,6 @@ import { UserConfigManager, UserConfig } from '../wordflow/user-config';
 import { v4 as uuidv4 } from 'uuid';
 
 import '../toast/toast';
-import '../panel-community/panel-community';
 import '../panel-local/panel-local';
 import '../panel-setting/panel-setting';
 
@@ -32,7 +30,6 @@ import type {
 } from '../../types/wordflow';
 import type { NightjarToast } from '../toast/toast';
 import type { SharePromptMessage } from '../prompt-editor/prompt-editor';
-import type { WordflowPanelCommunity } from '../panel-community/panel-community';
 
 // Assets
 import componentCSS from './setting-window.css?inline';
@@ -94,9 +91,6 @@ export class WordflowSettingWindow extends LitElement {
   @query('nightjar-toast#setting-toast')
   toastComponent: NightjarToast | undefined;
 
-  @queryAsync('wordflow-panel-community')
-  communityPanelComponent!: Promise<WordflowPanelCommunity>;
-
   //==========================================================================||
   //                             Lifecycle Methods                            ||
   //==========================================================================||
@@ -110,29 +104,12 @@ export class WordflowSettingWindow extends LitElement {
    */
   willUpdate(changedProperties: PropertyValues<this>) {}
 
-  firstUpdated() {
-    // Start to load the popular remote prompts
-    this.remotePromptManager.getPromptsByTag('', 'popular');
-
-    // Start to load the popular tags
-    this.remotePromptManager.getPopularTags();
-  }
+  firstUpdated() {}
 
   //==========================================================================||
   //                              Custom Methods                              ||
   //==========================================================================||
   async initData() {}
-
-  /**
-   * Show a community prompt without clicking
-   * @param prompt remote prompt data
-   */
-  showCommunityPrompt(prompt: PromptDataRemote) {
-    this.activeMenuItemIndex = 1;
-    this.communityPanelComponent.then(panel => {
-      panel.promptCardClicked(prompt);
-    });
-  }
 
   //==========================================================================||
   //                              Event Handlers                              ||
@@ -213,25 +190,13 @@ export class WordflowSettingWindow extends LitElement {
         ></wordflow-panel-local>`
       },
       {
-        name: 'Community',
-        component: html`<wordflow-panel-community
-          class="setting-panel"
-          ?is-shown=${this.activeMenuItemIndex === 1}
-          .remotePromptManager=${this.remotePromptManager}
-          .remotePrompts=${this.remotePrompts}
-          .popularTags=${this.popularTags}
-          @add-clicked=${(e: CustomEvent<PromptDataRemote>) =>
-            this.promptViewerAddClickHandler(e)}
-        ></wordflow-panel-community>`
-      },
-      {
         name: 'Settings',
         component: html`<wordflow-panel-setting
           class="setting-panel"
           .userConfigManager=${this.userConfigManager}
           .userConfig=${this.userConfig}
           .textGenLocalWorker=${this.textGenLocalWorker}
-          ?is-shown=${this.activeMenuItemIndex === 2}
+          ?is-shown=${this.activeMenuItemIndex === 1}
         ></wordflow-panel-setting>`
       }
     ];
