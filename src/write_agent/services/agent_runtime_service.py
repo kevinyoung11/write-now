@@ -222,6 +222,7 @@ class AgentRuntimeService:
             run_id=run_id,
             user_id=user_id,
             _internal=_internal,
+            allow_terminal=False,
             status="completed",
             current_stage="completed",
         )
@@ -238,6 +239,7 @@ class AgentRuntimeService:
             run_id=run_id,
             user_id=user_id,
             _internal=_internal,
+            allow_terminal=False,
             status="failed",
             current_stage="failed",
             error_message=error_message,
@@ -422,33 +424,87 @@ class AgentRuntimeService:
                 metadata={},
                 document_version_id=base_version_id,
             )
-            self.append_event(
+            self._complete_run_with_events(
                 user_id=user_id,
                 run_id=int(run.id),
-                event_type="message_completed",
-                payload={"content": final_answer},
+                final_answer=final_answer,
             )
-            self.append_event(
-                user_id=user_id,
-                run_id=int(run.id),
-                event_type="run_completed",
-                payload={"status": "completed"},
-            )
-            self.mark_run_completed(run_id=int(run.id), user_id=user_id)
         except Exception as error:
-            if self._is_run_terminal(run_id=int(run.id), user_id=user_id):
-                return
-            self.append_event(
-                user_id=user_id,
-                run_id=int(run.id),
-                event_type="run_failed",
-                payload={"error": str(error)},
-            )
-            self.mark_run_failed(
+            self._fail_run_with_event(
                 run_id=int(run.id),
                 user_id=user_id,
                 error_message=str(error),
             )
+
+    def _complete_run_with_events(
+        self, *, user_id: str, run_id: int, final_answer: str
+    ) -> bool:
+        self.ensure_schema()
+        with _RUN_APPEND_LOCKS[run_id]:
+            with Session(engine, expire_on_commit=False) as session:
+                run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
+                if run.status in TERMINAL_RUN_STATUSES:
+                    return False
+                last = session.exec(
+                    select(AgentRunEvent)
+                    .where(AgentRunEvent.run_id == int(run.id))
+                    .order_by(AgentRunEvent.seq.desc())
+                ).first()
+                next_seq = int(last.seq if last else 0) + 1
+                run.status = "completed"
+                run.current_stage = "completed"
+                run.error_message = None
+                run.updated_at = datetime.now()
+                session.add(run)
+                session.add(
+                    AgentRunEvent(
+                        run_id=int(run.id),
+                        seq=next_seq,
+                        event_type="message_completed",
+                        payload_json=_dump_json({"content": final_answer}),
+                    )
+                )
+                session.add(
+                    AgentRunEvent(
+                        run_id=int(run.id),
+                        seq=next_seq + 1,
+                        event_type="run_completed",
+                        payload_json=_dump_json({"status": "completed"}),
+                    )
+                )
+                session.commit()
+                return True
+
+    def _fail_run_with_event(
+        self, *, user_id: str, run_id: int, error_message: str
+    ) -> bool:
+        self.ensure_schema()
+        with _RUN_APPEND_LOCKS[run_id]:
+            with Session(engine, expire_on_commit=False) as session:
+                run = self._get_scoped_run(session, run_id=run_id, user_id=user_id)
+                if run.status in TERMINAL_RUN_STATUSES:
+                    return False
+                last = session.exec(
+                    select(AgentRunEvent)
+                    .where(AgentRunEvent.run_id == int(run.id))
+                    .order_by(AgentRunEvent.seq.desc())
+                ).first()
+                next_seq = int(last.seq if last else 0) + 1
+                run.status = "failed"
+                run.current_stage = "failed"
+                run.error_message = error_message
+                run.updated_at = datetime.now()
+                session.add(run)
+                session.add(
+                    AgentRunEvent(
+                        run_id=int(run.id),
+                        seq=next_seq,
+                        event_type="run_failed",
+                        payload_json=_dump_json({"error": error_message}),
+                    )
+                )
+                session.commit()
+                return True
 
     def _build_deep_agent(self):
         from deepagents import create_deep_agent
