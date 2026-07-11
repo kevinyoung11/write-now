@@ -573,9 +573,10 @@ export class WordflowWordflow extends LitElement {
     if (!this.isUserAuthorized()) return;
     if (!this.textEditorElement || this.currentDocument !== null) return;
     this.textEditorElement.restoreLocalEditorSnapshot();
+    const guardSnapshot = this.textEditorElement.getCleanDocumentSnapshot();
     this.isDocumentRestoring = true;
     try {
-      if (await this.restoreCurrentDocument()) return;
+      if (await this.restoreCurrentDocument(guardSnapshot)) return;
       const snapshot = this.textEditorElement.getCleanDocumentSnapshot();
       await this.ensureDocument(snapshot.content_html, snapshot.content_text);
     } catch (error) {
@@ -585,11 +586,24 @@ export class WordflowWordflow extends LitElement {
     }
   }
 
-  async restoreCurrentDocument() {
+  async restoreCurrentDocument(guardSnapshot: DocumentSnapshot) {
     if (!this.isUserAuthorized()) return false;
     if (!this.textEditorElement) return false;
     const document = await getCurrentDocument();
     if (document === null) return false;
+
+    // The user may have already started typing while this request was in
+    // flight. Loading the server's draft on top of that would silently
+    // wipe out what they just wrote, so bail out and let a fresh document
+    // get created from their current text instead.
+    const snapshotNow = this.textEditorElement.getCleanDocumentSnapshot();
+    if (
+      snapshotNow.content_html !== guardSnapshot.content_html ||
+      snapshotNow.content_text !== guardSnapshot.content_text
+    ) {
+      return false;
+    }
+
     this.currentDocument = document;
     this.textEditorElement.loadDocumentHtml(
       document.current_version?.content_html ?? ''

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import threading
+import time
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -11,6 +14,17 @@ from write_agent.core import get_settings
 from write_agent.core.database import engine
 from write_agent.core.schema import ensure_database_schema
 from write_agent.models import User
+
+# Verifying a Supabase access token means an extra network round trip to
+# Supabase's Auth API. That round trip repeats on every single API call
+# (loading the current document, sending a chat message, saving a version,
+# ...), which noticeably slows the app down since a token is valid for
+# a while after Supabase issues it. Cache the verified identity for a short
+# window so a burst of requests from one browser session only pays for that
+# round trip once.
+_TOKEN_CACHE_TTL_SECONDS = 60
+_token_cache: dict[str, tuple[float, "CurrentUser"]] = {}
+_token_cache_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -52,6 +66,11 @@ def resolve_current_user(
     if not settings.supabase_url or not settings.supabase_anon_key:
         raise HTTPException(status_code=500, detail="Supabase auth is not configured")
 
+    cache_key = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    cached = _get_cached_user(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         response = requests.get(
             f"{settings.supabase_url.rstrip('/')}/auth/v1/user",
@@ -76,10 +95,32 @@ def resolve_current_user(
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid Supabase token")
 
-    return _ensure_local_user(
+    current_user = _ensure_local_user(
         supabase_user_id=user_id,
         email=str(payload.get("email") or ""),
     )
+    _set_cached_user(cache_key, current_user)
+    return current_user
+
+
+def _get_cached_user(cache_key: str) -> "CurrentUser | None":
+    with _token_cache_lock:
+        entry = _token_cache.get(cache_key)
+        if entry is None:
+            return None
+        expires_at, current_user = entry
+        if expires_at < time.monotonic():
+            del _token_cache[cache_key]
+            return None
+        return current_user
+
+
+def _set_cached_user(cache_key: str, current_user: "CurrentUser") -> None:
+    with _token_cache_lock:
+        _token_cache[cache_key] = (
+            time.monotonic() + _TOKEN_CACHE_TTL_SECONDS,
+            current_user,
+        )
 
 
 def _allow_dev_user_fallback(settings) -> bool:

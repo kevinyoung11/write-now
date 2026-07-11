@@ -85,6 +85,7 @@ def test_supabase_token_is_verified_through_auth_api(monkeypatch):
     from write_agent.core import auth
     from write_agent.models import User
 
+    monkeypatch.setattr(auth, "_token_cache", {})
     captured = {}
     test_engine = create_engine("sqlite:///:memory:", echo=False)
     SQLModel.metadata.create_all(test_engine, tables=[User.__table__])
@@ -134,6 +135,50 @@ def test_supabase_token_is_verified_through_auth_api(monkeypatch):
         assert stored_user.email == "user@example.test"
 
 
+def test_supabase_token_verification_is_cached_for_repeat_calls(monkeypatch):
+    from write_agent.core import auth
+    from write_agent.models import User
+
+    monkeypatch.setattr(auth, "_token_cache", {})
+    test_engine = create_engine("sqlite:///:memory:", echo=False)
+    SQLModel.metadata.create_all(test_engine, tables=[User.__table__])
+    monkeypatch.setattr(auth, "engine", test_engine)
+
+    call_count = {"n": 0}
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"id": "supabase-user-1", "email": "user@example.test"}
+
+    def fake_get(url, headers, timeout):
+        call_count["n"] += 1
+        return FakeResponse()
+
+    monkeypatch.setattr(
+        auth,
+        "get_settings",
+        lambda: SimpleNamespace(
+            auth_dev_user_enabled=False,
+            auth_dev_user_id="dev-user",
+            auth_dev_email="dev@example.local",
+            supabase_url="https://project.supabase.co",
+            supabase_anon_key="anon-key",
+        ),
+    )
+    monkeypatch.setattr(auth.requests, "get", fake_get)
+
+    for _ in range(3):
+        user = auth.resolve_current_user(
+            authorization="Bearer access-token",
+            x_dev_user_id=None,
+        )
+        assert user.supabase_user_id == "supabase-user-1"
+
+    assert call_count["n"] == 1
+
+
 def test_dev_fallback_is_disabled_when_supabase_is_configured(monkeypatch):
     from write_agent.core import auth
 
@@ -161,6 +206,7 @@ def test_dev_fallback_is_disabled_when_supabase_is_configured(monkeypatch):
 def test_supabase_auth_outage_returns_controlled_error(monkeypatch):
     from write_agent.core import auth
 
+    monkeypatch.setattr(auth, "_token_cache", {})
     monkeypatch.setattr(
         auth,
         "get_settings",
