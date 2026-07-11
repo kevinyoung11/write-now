@@ -54,7 +54,7 @@ class DocumentService:
             return list(
                 session.exec(
                     select(Document)
-                    .where(Document.user_id == user_id)
+                    .where(Document.user_id == user_id, Document.status == "active")
                     .order_by(Document.updated_at.desc())
                 )
             )
@@ -66,7 +66,7 @@ class DocumentService:
         with Session(engine, expire_on_commit=False) as session:
             document = session.exec(
                 select(Document)
-                .where(Document.user_id == user_id)
+                .where(Document.user_id == user_id, Document.status == "active")
                 .order_by(Document.updated_at.desc())
             ).first()
             if document is None:
@@ -75,6 +75,21 @@ class DocumentService:
             if version is None or version.user_id != user_id:
                 raise ValueError("Current version not found")
             return document, version
+
+    def delete_document(self, *, user_id: str, document_id: int) -> None:
+        self.ensure_schema()
+        with Session(engine, expire_on_commit=False) as session:
+            document = session.get(Document, document_id)
+            if (
+                document is None
+                or document.user_id != user_id
+                or document.status != "active"
+            ):
+                raise ValueError("Document not found")
+            document.status = "deleted"
+            document.updated_at = datetime.now()
+            session.add(document)
+            session.commit()
 
     def get_document(
         self, *, user_id: str, document_id: int

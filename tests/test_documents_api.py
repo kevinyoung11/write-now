@@ -155,6 +155,82 @@ def test_create_version_rejects_parent_version_from_another_document():
     assert response.json()["detail"] == "Parent version not found"
 
 
+def test_delete_document_removes_it_from_list_and_current():
+    client = TestClient(app)
+    user_id = f"writer-delete-{uuid4().hex}"
+    kept = client.post(
+        "/api/documents",
+        headers={"X-Dev-User-Id": user_id},
+        json={"title": "Kept", "content_html": "<p>kept</p>", "content_text": "kept"},
+    ).json()
+    deleted = client.post(
+        "/api/documents",
+        headers={"X-Dev-User-Id": user_id},
+        json={
+            "title": "Deleted",
+            "content_html": "<p>deleted</p>",
+            "content_text": "deleted",
+        },
+    ).json()
+
+    response = client.delete(
+        f"/api/documents/{deleted['id']}",
+        headers={"X-Dev-User-Id": user_id},
+    )
+    assert response.status_code == 200
+
+    listed = client.get("/api/documents", headers={"X-Dev-User-Id": user_id})
+    listed_ids = [item["id"] for item in listed.json()["items"]]
+    assert deleted["id"] not in listed_ids
+    assert kept["id"] in listed_ids
+
+    current = client.get(
+        "/api/documents/current",
+        headers={"X-Dev-User-Id": user_id},
+    )
+    assert current.json()["document"]["id"] == kept["id"]
+
+
+def test_delete_document_is_user_scoped():
+    client = TestClient(app)
+    owner = f"writer-delete-owner-{uuid4().hex}"
+    other = f"writer-delete-other-{uuid4().hex}"
+    document = client.post(
+        "/api/documents",
+        headers={"X-Dev-User-Id": owner},
+        json={"title": "Mine", "content_html": "<p>mine</p>", "content_text": "mine"},
+    ).json()
+
+    response = client.delete(
+        f"/api/documents/{document['id']}",
+        headers={"X-Dev-User-Id": other},
+    )
+
+    assert response.status_code == 404
+
+
+def test_delete_document_twice_returns_not_found():
+    client = TestClient(app)
+    user_id = f"writer-delete-twice-{uuid4().hex}"
+    document = client.post(
+        "/api/documents",
+        headers={"X-Dev-User-Id": user_id},
+        json={"title": "Once", "content_html": "<p>once</p>", "content_text": "once"},
+    ).json()
+
+    first = client.delete(
+        f"/api/documents/{document['id']}",
+        headers={"X-Dev-User-Id": user_id},
+    )
+    second = client.delete(
+        f"/api/documents/{document['id']}",
+        headers={"X-Dev-User-Id": user_id},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 404
+
+
 def test_create_version_rejects_explicit_zero_parent_version_id():
     client = TestClient(app)
     user_id = f"writer-parent-zero-{uuid4().hex}"

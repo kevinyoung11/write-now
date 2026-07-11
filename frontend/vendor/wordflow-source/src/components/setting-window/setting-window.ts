@@ -21,6 +21,7 @@ import { v4 as uuidv4 } from 'uuid';
 import '../toast/toast';
 import '../panel-local/panel-local';
 import '../panel-setting/panel-setting';
+import '../panel-documents/panel-documents';
 
 // Types
 import type {
@@ -30,6 +31,7 @@ import type {
 } from '../../types/wordflow';
 import type { NightjarToast } from '../toast/toast';
 import type { SharePromptMessage } from '../prompt-editor/prompt-editor';
+import type { DocumentListItemPayload } from '../../product/document-client';
 
 // Assets
 import componentCSS from './setting-window.css?inline';
@@ -78,6 +80,24 @@ export class WordflowSettingWindow extends LitElement {
 
   @property({ attribute: false })
   textGenLocalWorker!: Worker;
+
+  @property({ attribute: false })
+  documentList: DocumentListItemPayload[] = [];
+
+  @property({ type: Boolean })
+  documentListLoading = false;
+
+  @property({ attribute: false })
+  currentDocumentId: number | null = null;
+
+  @property({ attribute: false })
+  onSelectDocument: ((documentId: number) => void) | undefined;
+
+  @property({ attribute: false })
+  onCreateDocument: (() => void) | undefined;
+
+  @property({ attribute: false })
+  onDeleteDocument: ((documentId: number) => void) | undefined;
 
   @state()
   activeMenuItemIndex = 0;
@@ -190,13 +210,26 @@ export class WordflowSettingWindow extends LitElement {
         ></wordflow-panel-local>`
       },
       {
+        name: 'My Notes',
+        component: html`<wordflow-panel-documents
+          class="setting-panel"
+          ?is-shown=${this.activeMenuItemIndex === 1}
+          .documentList=${this.documentList}
+          .documentListLoading=${this.documentListLoading}
+          .currentDocumentId=${this.currentDocumentId}
+          .onSelectDocument=${this.onSelectDocument}
+          .onCreateDocument=${this.onCreateDocument}
+          .onDeleteDocument=${this.onDeleteDocument}
+        ></wordflow-panel-documents>`
+      },
+      {
         name: 'Settings',
         component: html`<wordflow-panel-setting
           class="setting-panel"
           .userConfigManager=${this.userConfigManager}
           .userConfig=${this.userConfig}
           .textGenLocalWorker=${this.textGenLocalWorker}
-          ?is-shown=${this.activeMenuItemIndex === 1}
+          ?is-shown=${this.activeMenuItemIndex === 2}
         ></wordflow-panel-setting>`
       }
     ];

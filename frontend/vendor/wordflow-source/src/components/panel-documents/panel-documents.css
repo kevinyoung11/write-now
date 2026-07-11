@@ -1,0 +1,185 @@
+.panel-documents {
+  --padding-h: 20px;
+  --padding-v: 12px;
+
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+
+  box-sizing: border-box;
+  background-color: white;
+}
+
+button {
+  all: unset;
+}
+
+.svg-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 1em;
+  height: 1em;
+
+  color: currentColor;
+  transition: transform 80ms linear;
+  transform-origin: center;
+
+  & svg {
+    fill: currentColor;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.header {
+  padding: var(--padding-v) var(--padding-h);
+  width: 100%;
+  border-bottom: 1px solid var(--gray-300);
+  box-sizing: border-box;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-flow: row;
+  font-size: var(--font-u2);
+  line-height: 1;
+  font-weight: 800;
+}
+
+.create-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background-color: var(--accent-600);
+  color: white;
+  font-size: var(--font-d3);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 100ms;
+
+  .svg-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  &:hover {
+    background-color: var(--accent-700);
+  }
+}
+
+.document-list {
+  flex: 1 1 auto;
+  width: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 8px var(--padding-h);
+}
+
+.status-message {
+  padding: 24px 4px;
+  color: var(--gray-500);
+  font-size: var(--font-d2);
+  line-height: 1.5;
+}
+
+.document-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 100ms;
+
+  .note-icon {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    color: var(--gray-500);
+  }
+
+  &:hover {
+    background-color: color-mix(in lab, var(--gray-200), white 60%);
+
+    .delete-button {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  &[is-current] {
+    background-color: color-mix(in lab, var(--accent-200), white 60%);
+
+    .note-icon {
+      color: var(--accent-600);
+    }
+  }
+}
+
+.document-info {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  .title {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--gray-900);
+    font-size: var(--font-d2);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .updated-at {
+    color: var(--gray-500);
+    font-size: var(--font-d4);
+    line-height: 1.3;
+  }
+}
+
+.delete-button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--gray-500);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 100ms,
+    background-color 100ms,
+    color 100ms;
+
+  .svg-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  &:hover {
+    background-color: var(--gray-200);
+    color: var(--red-700);
+  }
+}
+
+@media (max-width: 640px) {
+  .delete-button {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

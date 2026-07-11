@@ -105,6 +105,18 @@ async def get_document(document_id: int, user: CurrentUserDep):
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
+@router.delete("/{document_id:int}")
+async def delete_document(document_id: int, user: CurrentUserDep):
+    try:
+        document_service.delete_document(
+            user_id=user.supabase_user_id,
+            document_id=document_id,
+        )
+        return {"ok": True}
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
 @router.post("/{document_id:int}/versions")
 async def create_version(
     document_id: int,

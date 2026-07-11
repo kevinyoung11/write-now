@@ -12,7 +12,11 @@ import { config } from '../../config/config';
 import {
   createDocument,
   createDocumentVersion,
+  deleteDocument,
   getCurrentDocument,
+  getDocument,
+  listDocuments,
+  type DocumentListItemPayload,
   type DocumentPayload
 } from '../../product/document-client';
 import { clearAuthToken, hasAuthToken } from '../../product/api-client';
@@ -63,6 +67,20 @@ const defaultPrompts = defaultPromptsJSON as PromptDataLocal[];
 
 // Constants
 const MENU_X_OFFSET = config.layout.sidebarMenuXOffset;
+const DOCUMENT_TITLE_MAX_LENGTH = 40;
+
+/**
+ * Use the first line of the document's text as its title in the notes list,
+ * since the editor has no separate title field for the user to fill in.
+ */
+const deriveTitleFromText = (text: string): string => {
+  const firstLine = text.split('\n').find(line => line.trim().length > 0);
+  if (firstLine === undefined) return 'Untitled';
+  const trimmed = firstLine.trim();
+  return trimmed.length > DOCUMENT_TITLE_MAX_LENGTH
+    ? `${trimmed.slice(0, DOCUMENT_TITLE_MAX_LENGTH)}…`
+    : trimmed;
+};
 
 export interface UpdateSidebarMenuProps {
   anchor: Element | VirtualElement;
@@ -169,6 +187,12 @@ export class WordflowWordflow extends LitElement {
 
   @state()
   isDocumentRestoring = false;
+
+  @state()
+  documentList: DocumentListItemPayload[] = [];
+
+  @state()
+  documentListLoading = false;
 
   @state()
   contextualChatVisible = false;
@@ -562,7 +586,7 @@ export class WordflowWordflow extends LitElement {
     if (!this.isUserAuthorized()) return null;
     if (this.currentDocument !== null) return this.currentDocument;
     this.currentDocument = await createDocument(
-      'Untitled script',
+      deriveTitleFromText(contentText),
       contentHtml,
       contentText
     );
@@ -610,6 +634,120 @@ export class WordflowWordflow extends LitElement {
     );
     localStorage.setItem('current-document-id', String(document.id));
     return true;
+  }
+
+  loadDocumentList = async () => {
+    if (!this.isUserAuthorized()) return;
+    this.documentListLoading = true;
+    try {
+      this.documentList = await listDocuments();
+    } catch (error) {
+      console.error('Failed to load the notes list', error);
+    } finally {
+      this.documentListLoading = false;
+    }
+  };
+
+  /**
+   * Save any edits the user made to the current document that were never
+   * pushed to the server (plain typing only creates a version when an AI
+   * edit is accepted), so switching away doesn't silently drop them.
+   */
+  async persistCurrentDocumentIfDirty() {
+    if (this.currentDocument === null || !this.textEditorElement) return;
+    const snapshot = this.textEditorElement.getCleanDocumentSnapshot();
+    const savedHtml = this.currentDocument.current_version?.content_html ?? '';
+    if (snapshot.content_html === savedHtml) return;
+
+    const version = await createDocumentVersion(this.currentDocument.id, {
+      content_html: snapshot.content_html,
+      content_text: snapshot.content_text,
+      source: 'manual_save',
+      reason: 'switching to another note',
+      parent_version_id: this.currentDocument.current_version_id
+    });
+    this.currentDocument = {
+      ...this.currentDocument,
+      current_version_id: version.id,
+      current_version: version
+    };
+  }
+
+  async selectDocument(documentId: number) {
+    if (!this.isUserAuthorized() || !this.textEditorElement) return;
+    if (this.currentDocument?.id === documentId) {
+      this.showSettingWindow = false;
+      return;
+    }
+
+    try {
+      await this.persistCurrentDocumentIfDirty();
+      const document = await getDocument(documentId);
+      this.currentDocument = document;
+      this.textEditorElement.loadDocumentHtml(
+        document.current_version?.content_html ?? ''
+      );
+      localStorage.setItem('current-document-id', String(document.id));
+      this.showSettingWindow = false;
+      void this.loadDocumentList();
+    } catch (error) {
+      console.error('Failed to switch notes', error);
+      this.toastMessage = 'Failed to open that note';
+      this.toastType = 'error';
+      this.toastComponent?.show();
+    }
+  }
+
+  async createNewDocument() {
+    if (!this.isUserAuthorized() || !this.textEditorElement) return;
+
+    try {
+      await this.persistCurrentDocumentIfDirty();
+      const document = await createDocument('Untitled', '', '');
+      this.currentDocument = document;
+      this.textEditorElement.loadDocumentHtml('');
+      localStorage.setItem('current-document-id', String(document.id));
+      this.showSettingWindow = false;
+      void this.loadDocumentList();
+    } catch (error) {
+      console.error('Failed to create a new note', error);
+      this.toastMessage = 'Failed to create a new note';
+      this.toastType = 'error';
+      this.toastComponent?.show();
+    }
+  }
+
+  async deleteDocumentById(documentId: number) {
+    if (!this.isUserAuthorized()) return;
+
+    try {
+      await deleteDocument(documentId);
+      this.documentList = this.documentList.filter(
+        document => document.id !== documentId
+      );
+
+      if (this.currentDocument?.id !== documentId) return;
+
+      const nextDocument = this.documentList[0];
+      if (nextDocument === undefined) {
+        this.currentDocument = null;
+        this.textEditorElement?.loadDocumentHtml('');
+        localStorage.removeItem('current-document-id');
+        return;
+      }
+
+      const document = await getDocument(nextDocument.id);
+      this.currentDocument = document;
+      this.textEditorElement?.loadDocumentHtml(
+        document.current_version?.content_html ?? ''
+      );
+      localStorage.setItem('current-document-id', String(document.id));
+    } catch (error) {
+      console.error('Failed to delete the note', error);
+      this.toastMessage = 'Failed to delete that note';
+      this.toastType = 'error';
+      this.toastComponent?.show();
+    }
   }
 
   async saveAcceptedAiEdit(
@@ -928,6 +1066,7 @@ export class WordflowWordflow extends LitElement {
             @ai-chat-button-clicked=${() => this.aiChatButtonClickHandler()}
             @setting-button-clicked=${() => {
               this.showSettingWindow = true;
+              void this.loadDocumentList();
             }}
           ></wordflow-floating-menu>
         </div>
@@ -943,6 +1082,14 @@ export class WordflowWordflow extends LitElement {
           .userConfigManager=${this.userConfigManager}
           .userConfig=${this.userConfig}
           .textGenLocalWorker=${this.textGenLocalWorker}
+          .documentList=${this.documentList}
+          .documentListLoading=${this.documentListLoading}
+          .currentDocumentId=${this.currentDocument?.id ?? null}
+          .onSelectDocument=${(documentId: number) =>
+            this.selectDocument(documentId)}
+          .onCreateDocument=${() => this.createNewDocument()}
+          .onDeleteDocument=${(documentId: number) =>
+            this.deleteDocumentById(documentId)}
           @close-button-clicked=${() => {
             this.showSettingWindow = false;
           }}

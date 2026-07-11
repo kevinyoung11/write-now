@@ -72,7 +72,6 @@ describe("product runtime wiring", () => {
     expect(wordflow).toContain("createDocumentVersion");
     expect(wordflow).toContain("restoreCurrentDocument");
     expect(wordflow).toContain("getCurrentDocument");
-    expect(wordflow).not.toContain("listDocuments");
     expect(wordflow).toContain("selected_text");
     expect(wordflow).toContain("result_text");
     expect(wordflow).toContain("base_version_id");
@@ -104,10 +103,48 @@ describe("product runtime wiring", () => {
     expect(wordflow).toContain("isDocumentRestoring");
     expect(wordflow).toContain("restoreLocalEditorSnapshot");
     expect(wordflow).toContain("loading-document");
-    expect(wordflow).not.toContain("await listDocuments()");
+    expect(wordflow).toContain("const document = await getCurrentDocument();");
     expect(wordflowCss).toContain(".loading-document");
     expect(textEditor).toContain("restoreLocalEditorSnapshot");
     expect(textEditor).toContain("last-editor-content");
+  });
+
+  it("lets the user browse, switch, create, and delete their saved notes", () => {
+    const documentClient = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/product/document-client.ts"),
+      "utf-8",
+    );
+    const wordflow = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/wordflow/wordflow.ts"),
+      "utf-8",
+    );
+    const settingWindow = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/setting-window/setting-window.ts"),
+      "utf-8",
+    );
+    const panelDocuments = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/panel-documents/panel-documents.ts"),
+      "utf-8",
+    );
+    const documentsApi = readFileSync(
+      resolve(process.cwd(), "../src/write_agent/api/documents.py"),
+      "utf-8",
+    );
+
+    expect(documentClient).toContain("deleteDocument");
+    expect(wordflow).toContain("loadDocumentList");
+    expect(wordflow).toContain("await listDocuments()");
+    expect(wordflow).toContain("selectDocument");
+    expect(wordflow).toContain("createNewDocument");
+    expect(wordflow).toContain("deleteDocumentById");
+    expect(wordflow).toContain("persistCurrentDocumentIfDirty");
+    expect(settingWindow).toContain("wordflow-panel-documents");
+    expect(settingWindow).toContain("onSelectDocument");
+    expect(settingWindow).toContain("onDeleteDocument");
+    expect(panelDocuments).toContain("onCreateDocument");
+    expect(panelDocuments).toContain("confirmDialogComponent");
+    expect(documentsApi).toContain("async def delete_document");
+    expect(documentsApi).toContain('router.delete("/{document_id:int}")');
   });
 
   it("wires document-scoped streaming chat into the wordflow shell", () => {

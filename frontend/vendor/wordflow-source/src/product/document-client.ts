@@ -17,6 +17,7 @@ export interface DocumentPayload {
   title: string;
   status?: string;
   current_version_id: number;
+  updated_at?: string;
   current_version: DocumentVersionPayload;
 }
 
@@ -72,6 +73,14 @@ export async function createDocument(
     })
   });
   return parseJsonResponse<DocumentPayload>(response);
+}
+
+export async function deleteDocument(documentId: number): Promise<void> {
+  const response = await fetch(`${config.urls.documentsEndpoint}/${documentId}`, {
+    method: 'DELETE',
+    headers: authHeaders(false)
+  });
+  await parseJsonResponse<{ ok: boolean }>(response);
 }
 
 export async function createDocumentVersion(
