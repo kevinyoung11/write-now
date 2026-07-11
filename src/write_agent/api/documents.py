@@ -81,6 +81,18 @@ async def list_documents(user: CurrentUserDep):
     }
 
 
+@router.get("/current")
+async def get_current_document(user: CurrentUserDep):
+    try:
+        result = document_service.get_current_document(user_id=user.supabase_user_id)
+        if result is None:
+            return {"document": None}
+        document, version = result
+        return {"document": _document_payload(document, version)}
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
 @router.get("/{document_id:int}")
 async def get_document(document_id: int, user: CurrentUserDep):
     try:
@@ -137,4 +149,3 @@ async def rollback(document_id: int, request: RollbackRequest, user: CurrentUser
         return _document_payload(document, version)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
-

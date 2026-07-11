@@ -3,18 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlmodel import SQLModel, Session, select
+from sqlmodel import Session, select
 
 from write_agent.core.database import engine
+from write_agent.core.schema import ensure_database_schema
 from write_agent.models import Document, DocumentVersion
 
 
 class DocumentService:
     def ensure_schema(self) -> None:
-        SQLModel.metadata.create_all(
-            engine,
-            tables=[Document.__table__, DocumentVersion.__table__],
-        )
+        ensure_database_schema(engine)
 
     def create_document(
         self,
@@ -60,6 +58,23 @@ class DocumentService:
                     .order_by(Document.updated_at.desc())
                 )
             )
+
+    def get_current_document(
+        self, *, user_id: str
+    ) -> tuple[Document, DocumentVersion] | None:
+        self.ensure_schema()
+        with Session(engine, expire_on_commit=False) as session:
+            document = session.exec(
+                select(Document)
+                .where(Document.user_id == user_id)
+                .order_by(Document.updated_at.desc())
+            ).first()
+            if document is None:
+                return None
+            version = session.get(DocumentVersion, document.current_version_id)
+            if version is None or version.user_id != user_id:
+                raise ValueError("Current version not found")
+            return document, version
 
     def get_document(
         self, *, user_id: str, document_id: int

@@ -9,10 +9,11 @@ from uuid import uuid4
 
 from fastapi.encoders import jsonable_encoder
 from langchain_openai import ChatOpenAI
-from sqlmodel import SQLModel, Session, select
+from sqlmodel import Session, select
 
 from write_agent.core import get_settings
 from write_agent.core.database import engine
+from write_agent.core.schema import ensure_database_schema
 from write_agent.models import (
     AgentMessage,
     AgentReasoningTrace,
@@ -27,16 +28,7 @@ _RUN_APPEND_LOCKS: defaultdict[int, threading.Lock] = defaultdict(threading.Lock
 
 class AgentRuntimeService:
     def ensure_schema(self) -> None:
-        SQLModel.metadata.create_all(
-            engine,
-            tables=[
-                AgentThread.__table__,
-                AgentRun.__table__,
-                AgentRunEvent.__table__,
-                AgentMessage.__table__,
-                AgentReasoningTrace.__table__,
-            ],
-        )
+        ensure_database_schema(engine)
 
     def get_or_create_thread(
         self, *, user_id: str, document_id: int, title: str
@@ -339,6 +331,20 @@ class AgentRuntimeService:
             payload={"content": content},
         )
         return {"run_id": run.id, "thread_id": thread.id, "status": "running"}
+
+    def start_background_chat_run(self, *, user_id: str, run_id: int) -> threading.Thread:
+        worker = threading.Thread(
+            target=self._drain_chat_run,
+            kwargs={"user_id": user_id, "run_id": run_id},
+            name=f"agent-chat-run-{run_id}",
+            daemon=True,
+        )
+        worker.start()
+        return worker
+
+    def _drain_chat_run(self, *, user_id: str, run_id: int) -> None:
+        for _event in self.stream_chat_run(user_id=user_id, run_id=run_id):
+            pass
 
     def stream_chat_run(self, *, user_id: str, run_id: int):
         context = self._claim_chat_run_for_streaming(user_id=user_id, run_id=run_id)

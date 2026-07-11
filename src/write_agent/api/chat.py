@@ -44,13 +44,18 @@ async def create_chat_message(
     if not request.content.strip():
         raise HTTPException(status_code=400, detail="Message content is required")
     try:
-        return agent_runtime_service.start_chat_run(
+        run = agent_runtime_service.start_chat_run(
             user_id=user.supabase_user_id,
             document_id=document_id,
             content=request.content,
             selection=request.selection.model_dump() if request.selection else None,
             base_version_id=request.base_version_id,
         )
+        agent_runtime_service.start_background_chat_run(
+            user_id=user.supabase_user_id,
+            run_id=int(run["run_id"]),
+        )
+        return run
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -90,25 +95,7 @@ async def stream_chat_run_events(
                 if event.event_type in TERMINAL_EVENTS:
                     return
 
-            streamed = False
-            try:
-                for event in agent_runtime_service.stream_chat_run(
-                    user_id=user.supabase_user_id,
-                    run_id=run_id,
-                ):
-                    streamed = True
-                    next_seq = int(event.seq)
-                    yield _sse(
-                        event.event_type,
-                        json.loads(event.payload_json or "{}"),
-                        next_seq,
-                    )
-                    if event.event_type in TERMINAL_EVENTS:
-                        return
-            except ValueError as error:
-                yield _sse("error", {"detail": str(error)}, next_seq)
-                return
-            if not events and not streamed:
+            if not events:
                 time.sleep(sleep_seconds)
 
     return StreamingResponse(

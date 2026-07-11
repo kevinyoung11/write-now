@@ -179,6 +179,8 @@ def test_runtime_store_persists_messages_and_reasoning():
 def test_chat_message_endpoint_starts_scoped_run(monkeypatch):
     from write_agent.api import chat as chat_api
 
+    scheduled = []
+
     class FakeRuntime:
         def start_chat_run(self, *, user_id, document_id, content, selection, base_version_id):
             assert user_id.startswith("chat-user-")
@@ -192,12 +194,16 @@ def test_chat_message_endpoint_starts_scoped_run(monkeypatch):
             assert base_version_id == 20
             return {"run_id": 501, "thread_id": 601, "status": "running"}
 
+        def start_background_chat_run(self, *, user_id, run_id):
+            scheduled.append((user_id, run_id))
+
     monkeypatch.setattr(chat_api, "agent_runtime_service", FakeRuntime())
 
     client = TestClient(app)
+    user_id = f"chat-user-{uuid4().hex}"
     response = client.post(
         "/api/documents/10/chat/messages",
-        headers={"X-Dev-User-Id": f"chat-user-{uuid4().hex}"},
+        headers={"X-Dev-User-Id": user_id},
         json={
             "content": "这段怎么改？",
             "selection": {"text": "原文", "context_before": "", "context_after": ""},
@@ -207,6 +213,7 @@ def test_chat_message_endpoint_starts_scoped_run(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"run_id": 501, "thread_id": 601, "status": "running"}
+    assert scheduled == [(user_id, 501)]
 
 
 def test_chat_events_endpoint_replays_scoped_sse(monkeypatch):
@@ -240,30 +247,35 @@ def test_chat_events_endpoint_replays_scoped_sse(monkeypatch):
     assert '"delta": "Hi"' in response.text
 
 
-def test_chat_events_endpoint_drives_stream_execution(monkeypatch):
+def test_chat_events_endpoint_polls_background_execution(monkeypatch):
     from types import SimpleNamespace
     from write_agent.api import chat as chat_api
 
-    calls = {"stream": 0}
+    calls = {"list": 0}
 
     class FakeRuntime:
         def list_events(self, *, user_id, run_id, from_seq=0):
-            return []
+            calls["list"] += 1
+            if calls["list"] == 1:
+                return []
+            return [
+                SimpleNamespace(
+                    seq=1,
+                    event_type="message_delta",
+                    payload_json='{"delta": "Hi"}',
+                ),
+                SimpleNamespace(
+                    seq=2,
+                    event_type="run_completed",
+                    payload_json='{"status": "completed"}',
+                ),
+            ]
 
         def stream_chat_run(self, *, user_id, run_id):
-            calls["stream"] += 1
-            yield SimpleNamespace(
-                seq=1,
-                event_type="message_delta",
-                payload_json='{"delta": "Hi"}',
-            )
-            yield SimpleNamespace(
-                seq=2,
-                event_type="run_completed",
-                payload_json='{"status": "completed"}',
-            )
+            raise AssertionError("SSE polling must not execute the agent runtime")
 
     monkeypatch.setattr(chat_api, "agent_runtime_service", FakeRuntime())
+    monkeypatch.setattr(chat_api.time, "sleep", lambda _seconds: None)
 
     client = TestClient(app)
     response = client.get(
@@ -272,7 +284,7 @@ def test_chat_events_endpoint_drives_stream_execution(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert calls["stream"] == 1
+    assert calls["list"] >= 2
     assert "event: message_delta" in response.text
     assert "event: run_completed" in response.text
 

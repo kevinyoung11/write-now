@@ -17,5 +17,6 @@ os.environ.setdefault("OBS_LOG_DIR", "/tmp/write_agent_observability")
 os.environ.setdefault("CHROMA_DIR", "/tmp/write_agent_chroma")
 os.environ.setdefault("XHS_TRENDS_CACHE_FILE", "/tmp/write_agent_xhs_trends_cache.json")
 os.environ.setdefault("ENABLE_SCHEDULERS", "false")
+os.environ.setdefault("BOOTSTRAP_DEFAULT_DATA", "false")
 
 from write_agent.main import app

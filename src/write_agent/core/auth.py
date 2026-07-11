@@ -5,10 +5,11 @@ from typing import Annotated
 
 import requests
 from fastapi import Depends, Header, HTTPException
-from sqlmodel import SQLModel, Session, select
+from sqlmodel import Session, select
 
 from write_agent.core import get_settings
 from write_agent.core.database import engine
+from write_agent.core.schema import ensure_database_schema
 from write_agent.models import User
 
 
@@ -88,7 +89,7 @@ def _allow_dev_user_fallback(settings) -> bool:
 
 
 def _ensure_local_user(*, supabase_user_id: str, email: str) -> CurrentUser:
-    SQLModel.metadata.create_all(engine, tables=[User.__table__])
+    ensure_database_schema(engine)
     with Session(engine) as session:
         user = session.exec(
             select(User).where(User.supabase_user_id == supabase_user_id)

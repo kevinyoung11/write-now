@@ -26,6 +26,7 @@ describe("product runtime wiring", () => {
     expect(actions).toContain("shorten");
     expect(client).toContain("listDocuments");
     expect(client).toContain("getDocument");
+    expect(client).toContain("getCurrentDocument");
     expect(client).toContain("createDocumentVersion");
   });
 
@@ -70,14 +71,43 @@ describe("product runtime wiring", () => {
     expect(textEditor).toContain("lastAiEditContext");
     expect(wordflow).toContain("createDocumentVersion");
     expect(wordflow).toContain("restoreCurrentDocument");
-    expect(wordflow).toContain("getDocument");
-    expect(wordflow).toContain("listDocuments");
+    expect(wordflow).toContain("getCurrentDocument");
+    expect(wordflow).not.toContain("listDocuments");
     expect(wordflow).toContain("selected_text");
     expect(wordflow).toContain("result_text");
     expect(wordflow).toContain("base_version_id");
     expect(wordflow).toContain("document_id");
     expect(wordflow).toContain("beforeSnapshot.content_text === afterSnapshot.content_text");
     expect(wordflow).toContain("`${editContext.action} ${editContext.scope}`");
+  });
+
+  it("restores the current document through one API call while keeping local content visible", () => {
+    const documentClient = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/product/document-client.ts"),
+      "utf-8",
+    );
+    const wordflow = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/wordflow/wordflow.ts"),
+      "utf-8",
+    );
+    const wordflowCss = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/wordflow/wordflow.css"),
+      "utf-8",
+    );
+    const textEditor = readFileSync(
+      resolve(process.cwd(), "vendor/wordflow-source/src/components/text-editor/text-editor.ts"),
+      "utf-8",
+    );
+
+    expect(documentClient).toContain("CurrentDocumentPayload");
+    expect(documentClient).toContain("/current");
+    expect(wordflow).toContain("isDocumentRestoring");
+    expect(wordflow).toContain("restoreLocalEditorSnapshot");
+    expect(wordflow).toContain("loading-document");
+    expect(wordflow).not.toContain("await listDocuments()");
+    expect(wordflowCss).toContain(".loading-document");
+    expect(textEditor).toContain("restoreLocalEditorSnapshot");
+    expect(textEditor).toContain("last-editor-content");
   });
 
   it("wires document-scoped streaming chat into the wordflow shell", () => {

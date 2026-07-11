@@ -12,8 +12,7 @@ import { config } from '../../config/config';
 import {
   createDocument,
   createDocumentVersion,
-  getDocument,
-  listDocuments,
+  getCurrentDocument,
   type DocumentPayload
 } from '../../product/document-client';
 import { clearAuthToken, hasAuthToken } from '../../product/api-client';
@@ -167,6 +166,9 @@ export class WordflowWordflow extends LitElement {
 
   @state()
   currentDocument: DocumentPayload | null = null;
+
+  @state()
+  isDocumentRestoring = false;
 
   @state()
   contextualChatVisible = false;
@@ -570,21 +572,24 @@ export class WordflowWordflow extends LitElement {
   async initializeCurrentDocument() {
     if (!this.isUserAuthorized()) return;
     if (!this.textEditorElement || this.currentDocument !== null) return;
+    this.textEditorElement.restoreLocalEditorSnapshot();
+    this.isDocumentRestoring = true;
     try {
       if (await this.restoreCurrentDocument()) return;
       const snapshot = this.textEditorElement.getCleanDocumentSnapshot();
       await this.ensureDocument(snapshot.content_html, snapshot.content_text);
     } catch (error) {
       console.error('Failed to initialize document', error);
+    } finally {
+      this.isDocumentRestoring = false;
     }
   }
 
   async restoreCurrentDocument() {
     if (!this.isUserAuthorized()) return false;
     if (!this.textEditorElement) return false;
-    const documents = await listDocuments();
-    if (documents.length === 0) return false;
-    const document = await getDocument(documents[0].id);
+    const document = await getCurrentDocument();
+    if (document === null) return false;
     this.currentDocument = document;
     this.textEditorElement.loadDocumentHtml(
       document.current_version?.content_html ?? ''
@@ -781,6 +786,11 @@ export class WordflowWordflow extends LitElement {
                 this.toastComponent?.show();
               }}
             ></wordflow-text-editor>
+            ${isAuthorized && this.isDocumentRestoring
+              ? html`<div class="loading-document" role="status">
+                  Restoring latest draft
+                </div>`
+              : ''}
             ${!isAuthorized
               ? html`<div class="auth-gate" role="region" aria-label="Sign in">
                   <div class="auth-gate-panel">
