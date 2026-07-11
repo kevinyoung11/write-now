@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
+from write_agent.core.lazy_service import LazyService
 from write_agent.observability import bind_entities, emit_obs_event, obs_scope
 from write_agent.services.github_trending_service import (
     RefreshInProgressError,
@@ -15,7 +16,8 @@ from write_agent.services.github_trending_service import (
 )
 
 router = APIRouter(prefix="/github-trends", tags=["GitHub 趋势"])
-service = get_github_trending_service()
+# 延迟到第一次真正使用时才创建，避免拖慢冷启动
+service = LazyService(get_github_trending_service)
 
 
 class GitHubTrendItem(BaseModel):

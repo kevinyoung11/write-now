@@ -14,6 +14,7 @@ from write_agent.observability import (
     emit_obs_event,
     obs_scope,
 )
+from write_agent.core.lazy_service import LazyService
 from write_agent.services.review_service import get_review_service
 from write_agent.services.workflow_job_service import get_workflow_job_service
 from write_agent.services.workflow_service import get_workflow_service
@@ -21,10 +22,10 @@ from write_agent.services.workflow_service import get_workflow_service
 router = APIRouter(prefix="/reviews", tags=["文章审核"])
 logger = logging.getLogger(__name__)
 
-# 服务实例
-review_service = get_review_service()
-workflow_service = get_workflow_service()
-workflow_job_service = get_workflow_job_service()
+# 服务实例（延迟到第一次真正使用时才创建，避免拖慢冷启动）
+review_service = LazyService(get_review_service)
+workflow_service = LazyService(get_workflow_service)
+workflow_job_service = LazyService(get_workflow_job_service)
 
 
 # ============ 请求/响应模型 ============

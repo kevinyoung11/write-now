@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from write_agent.services.style_service import get_style_service
 from write_agent.core import get_logger
+from write_agent.core.lazy_service import LazyService
 from write_agent.observability import (
     attach_obs_meta,
     bind_entities,
@@ -19,8 +20,8 @@ from write_agent.observability import (
 logger = get_logger(__name__)
 router = APIRouter(prefix="/styles", tags=["写作风格"])
 
-# 服务实例
-style_service = get_style_service()
+# 服务实例（延迟到第一次真正使用时才创建，避免拖慢冷启动）
+style_service = LazyService(get_style_service)
 
 
 # ============ 请求/响应模型 ============

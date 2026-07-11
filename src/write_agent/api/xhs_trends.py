@@ -10,11 +10,13 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from write_agent.core.lazy_service import LazyService
 from write_agent.observability import attach_obs_meta, emit_obs_event, obs_scope
 from write_agent.services.xhs_trends_service import RefreshInProgressError, get_xhs_trends_service
 
 router = APIRouter(prefix="/xhs-trends", tags=["小红书热点"])
-service = get_xhs_trends_service()
+# 延迟到第一次真正使用时才创建，避免拖慢冷启动
+service = LazyService(get_xhs_trends_service)
 
 
 class XhsCategory(BaseModel):

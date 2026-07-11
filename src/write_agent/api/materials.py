@@ -7,14 +7,15 @@ from pydantic import BaseModel, Field
 
 from write_agent.services.material_service import get_material_service
 from write_agent.core import get_logger
+from write_agent.core.lazy_service import LazyService
 from write_agent.observability import bind_entities, emit_obs_event, obs_scope
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/materials", tags=["素材管理"])
 
-# 服务实例
-material_service = get_material_service()
+# 服务实例（延迟到第一次真正使用时才创建，避免拖慢冷启动）
+material_service = LazyService(get_material_service)
 
 
 # ============ 请求/响应模型 ============

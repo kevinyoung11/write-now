@@ -13,14 +13,13 @@ from write_agent.observability import (
     emit_obs_event,
     obs_scope,
 )
+from write_agent.core.lazy_service import LazyService
 from write_agent.services.rewrite_service import get_rewrite_service
-from write_agent.services.material_service import get_material_service
 
 router = APIRouter(prefix="/rewrites", tags=["文章改写"])
 
-# 服务实例
-rewrite_service = get_rewrite_service()
-material_service = get_material_service()
+# 服务实例（延迟到第一次真正使用时才创建，避免拖慢冷启动）
+rewrite_service = LazyService(get_rewrite_service)
 
 
 # ============ 请求/响应模型 ============

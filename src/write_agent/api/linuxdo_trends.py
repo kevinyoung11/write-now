@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
+from write_agent.core.lazy_service import LazyService
 from write_agent.observability import bind_entities, emit_obs_event, obs_scope
 from write_agent.services.linuxdo_trending_service import (
     RefreshCoolingDownError,
@@ -15,7 +16,8 @@ from write_agent.services.linuxdo_trending_service import (
 )
 
 router = APIRouter(prefix="/linuxdo-trends", tags=["Linux.do 趋势"])
-service = get_linuxdo_trending_service()
+# 延迟到第一次真正使用时才创建，避免拖慢冷启动
+service = LazyService(get_linuxdo_trending_service)
 
 
 class LinuxDoTrendItem(BaseModel):
