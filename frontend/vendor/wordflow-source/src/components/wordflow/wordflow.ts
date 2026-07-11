@@ -761,12 +761,7 @@ export class WordflowWordflow extends LitElement {
           </div>
         </div>
 
-        <div
-          class="floating-menu-box ${this.contextualChatVisible
-            ? ''
-            : 'hidden'}"
-          id="floating-menu-box"
-        >
+        <div class="floating-menu-box hidden" id="floating-menu-box">
           <wordflow-floating-menu
             .popperTooltip=${this.popperTooltip}
             .loadingActionIndex=${this.loadingActionIndex}
@@ -777,6 +772,9 @@ export class WordflowWordflow extends LitElement {
             @tool-button-clicked=${(
               e: CustomEvent<[PromptDataLocal, number]>
             ) => this.floatingMenuToolButtonClickHandler(e)}
+            @ai-chat-button-clicked=${() => {
+              this.textEditorElement?.notifyContextualChat(true);
+            }}
             @setting-button-clicked=${() => {
               this.showSettingWindow = true;
             }}

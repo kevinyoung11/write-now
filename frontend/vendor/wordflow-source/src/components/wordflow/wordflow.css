@@ -405,6 +405,10 @@ wordflow-setting-window {
   display: flex;
 }
 
+.contextual-chat[is-open] .contextual-chat-button {
+  display: none;
+}
+
 .contextual-chat-header {
   display: flex;
   align-items: center;

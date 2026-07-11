@@ -10,6 +10,7 @@ import type { PromptDataLocal } from '../../types/wordflow';
 import componentCSS from './floating-menu.css?inline';
 import gearIcon from '../../images/icon-gear.svg?raw';
 import homeIcon from '../../images/icon-home.svg?raw';
+import chatIcon from '../../images/icon-chat.svg?raw';
 
 /**
  * Floating menu element.
@@ -120,6 +121,32 @@ export class WordflowFloatingMenu extends LitElement {
     this.dispatchEvent(event);
   }
 
+  aiChatButtonClicked() {
+    const event = new Event('ai-chat-button-clicked', {
+      bubbles: true,
+      composed: true
+    });
+    this.dispatchEvent(event);
+  }
+
+  aiChatButtonMouseEnterHandler(e: MouseEvent) {
+    if (this.popperTooltip === undefined) {
+      throw Error('Popper is not initialized.');
+    }
+
+    this.popperTooltip.then(tooltip => {
+      updatePopperTooltip(
+        tooltip,
+        e.target as HTMLElement,
+        'AI Chat',
+        'right',
+        true,
+        10
+      );
+      tooltip.classList.remove('hidden');
+    });
+  }
+
   toolButtonMouseEnterHandler(e: MouseEvent, index: number) {
     if (this.popperTooltip === undefined) {
       throw Error('Popper is not initialized.');
@@ -212,6 +239,14 @@ export class WordflowFloatingMenu extends LitElement {
         >
           ${toolButtons}
         </div>
+        <button
+          class="tool-button ai-chat-button"
+          @mousedown=${() => this.aiChatButtonClicked()}
+          @mouseenter=${(e: MouseEvent) => this.aiChatButtonMouseEnterHandler(e)}
+          @mouseleave=${(e: MouseEvent) => this.toolButtonMouseLeaveHandler(e)}
+        >
+          <div class="svg-icon">${unsafeHTML(chatIcon)}</div>
+        </button>
         <button
           class="tool-button setting-button"
           @mousedown=${() => this.settingButtonClicked()}

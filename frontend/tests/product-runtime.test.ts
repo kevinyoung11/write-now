@@ -134,9 +134,13 @@ describe("product runtime wiring", () => {
     expect(wordflowCss).toContain(".contextual-chat-popover");
     expect(wordflowCss).toContain("position: fixed");
     expect(textEditor).toContain("updateContextualChat");
-    expect(textEditor).toContain("onSelectionUpdate");
+    expect(textEditor).toContain("notifyContextualChat");
     expect(textEditor).toContain("contextualChatKeydownHandler");
     expect(textEditor).toContain("posToDOMRect");
+    // The AI Chat entry is an explicit trigger (persistent toolbar icon or
+    // the Cmd/Ctrl+J shortcut) rather than auto-popping on every selection.
+    expect(textEditor).not.toContain("onSelectionUpdate: () => this.notifyContextualChat");
+    expect(wordflow).toContain("ai-chat-button-clicked");
     expect(agentChat).toContain("selection");
     expect(agentChat).toContain("selection: this.selection");
     expect(agentChat).toContain("formatChatError");

@@ -118,10 +118,24 @@ button.tool-button {
     padding-bottom: calc(var(--padding) + 2px);
   }
 
-  &.setting-button {
+  &.ai-chat-button {
     padding-top: calc(var(--padding) + 1px);
-    padding-bottom: calc(var(--padding) + 4px);
     border-top: 1px solid var(--gray-300);
+
+    .svg-icon {
+      background-color: var(--accent-600);
+      border-color: var(--accent-600);
+      color: white;
+    }
+
+    &:hover .svg-icon {
+      background-color: var(--accent-700);
+      border-color: var(--accent-700);
+    }
+  }
+
+  &.setting-button {
+    padding-bottom: calc(var(--padding) + 4px);
   }
 
   &[is-empty] {
