@@ -1,11 +1,5 @@
 import { LitElement, css, unsafeCSS, html, PropertyValues } from 'lit';
-import {
-  customElement,
-  property,
-  state,
-  query,
-  queryAsync
-} from 'lit/decorators.js';
+import { customElement, property, state, query, queryAsync } from 'lit/decorators.js';
 import { random } from '@xiaohk/utils';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import {
@@ -22,6 +16,8 @@ import {
   listDocuments,
   type DocumentPayload
 } from '../../product/document-client';
+import { clearAuthToken, hasAuthToken } from '../../product/api-client';
+import { signInWithPassword } from '../../product/supabase-auth-client';
 import { PromptManager } from './prompt-manager';
 import { RemotePromptManager } from './remote-prompt-manager';
 import { UserConfigManager, UserConfig } from './user-config';
@@ -39,7 +35,6 @@ import type {
   Mode,
   SidebarSummaryCounter
 } from '../sidebar-menu/sidebar-menu';
-import type { WordflowFloatingMenu } from '../floating-menu/floating-menu';
 import type { Editor } from '@tiptap/core';
 import type { SharePromptMessage } from '../prompt-editor/prompt-editor';
 import type { NightjarToast } from '../toast/toast';
@@ -191,6 +186,18 @@ export class WordflowWordflow extends LitElement {
   @state()
   currentUserLabel = '';
 
+  @state()
+  authEmailInput = '';
+
+  @state()
+  authPasswordInput = '';
+
+  @state()
+  authError = '';
+
+  @state()
+  authSubmitting = false;
+
   @query('nightjar-toast#toast-wordflow')
   toastComponent: NightjarToast | undefined;
 
@@ -289,11 +296,52 @@ export class WordflowWordflow extends LitElement {
   }
 
   getCurrentUserLabel() {
-    if (localStorage.getItem('supabase-access-token')) {
-      return 'Supabase user';
+    if (this.isUserAuthorized()) {
+      return localStorage.getItem('supabase-user-email') || 'Supabase user';
     }
-    const userID = localStorage.getItem('user-id');
-    return userID ? `Local ${userID.slice(0, 8)}` : 'Local user';
+    return 'Not signed in';
+  }
+
+  isUserAuthorized() {
+    return hasAuthToken();
+  }
+
+  showAuthRequired() {
+    this.toastMessage = 'Please sign in before writing';
+    this.toastType = 'warning';
+    this.toastComponent?.show();
+  }
+
+  async signIn() {
+    const email = this.authEmailInput.trim();
+    const password = this.authPasswordInput;
+    if (!email || !password) {
+      this.showAuthRequired();
+      return;
+    }
+
+    this.authSubmitting = true;
+    this.authError = '';
+    try {
+      await signInWithPassword(email, password);
+      this.authPasswordInput = '';
+      this.currentUserLabel = this.getCurrentUserLabel();
+      this.requestUpdate();
+      await this.initializeCurrentDocument();
+    } catch (error) {
+      this.authError = 'Sign in failed. Check your email and password.';
+      console.error('Failed to sign in', error);
+    } finally {
+      this.authSubmitting = false;
+    }
+  }
+
+  signOut() {
+    clearAuthToken();
+    this.currentDocument = null;
+    this.currentUserLabel = this.getCurrentUserLabel();
+    this.contextualChatVisible = false;
+    this.contextualChatOpen = false;
   }
 
   /**
@@ -454,6 +502,12 @@ export class WordflowWordflow extends LitElement {
     rect,
     selection
   }: UpdateContextualChatProps) => {
+    if (!this.isUserAuthorized()) {
+      this.contextualChatVisible = false;
+      this.contextualChatOpen = false;
+      return;
+    }
+
     if (!visible || rect === undefined) {
       this.contextualChatVisible = false;
       this.contextualChatOpen = false;
@@ -477,6 +531,11 @@ export class WordflowWordflow extends LitElement {
 
   // ===== Event Methods ======
   sidebarMenuFooterButtonClickedHandler(e: CustomEvent<string>) {
+    if (!this.isUserAuthorized()) {
+      this.showAuthRequired();
+      return;
+    }
+
     // Delegate the event to the text editor component
     if (!this.textEditorElement) return;
     const buttonAction = e.detail;
@@ -498,6 +557,7 @@ export class WordflowWordflow extends LitElement {
   }
 
   async ensureDocument(contentHtml: string, contentText: string) {
+    if (!this.isUserAuthorized()) return null;
     if (this.currentDocument !== null) return this.currentDocument;
     this.currentDocument = await createDocument(
       'Untitled script',
@@ -508,6 +568,7 @@ export class WordflowWordflow extends LitElement {
   }
 
   async initializeCurrentDocument() {
+    if (!this.isUserAuthorized()) return;
     if (!this.textEditorElement || this.currentDocument !== null) return;
     try {
       if (await this.restoreCurrentDocument()) return;
@@ -519,6 +580,7 @@ export class WordflowWordflow extends LitElement {
   }
 
   async restoreCurrentDocument() {
+    if (!this.isUserAuthorized()) return false;
     if (!this.textEditorElement) return false;
     const documents = await listDocuments();
     if (documents.length === 0) return false;
@@ -548,6 +610,7 @@ export class WordflowWordflow extends LitElement {
         beforeSnapshot.content_html,
         beforeSnapshot.content_text
       );
+      if (document === null) return;
       const baseVersionId = document.current_version_id;
       const version = await createDocumentVersion(document.id, {
         content_html: afterSnapshot.content_html,
@@ -576,12 +639,14 @@ export class WordflowWordflow extends LitElement {
   }
 
   floatingMenuToolMouseEnterHandler() {
+    if (!this.isUserAuthorized()) return;
     // Delegate the event to the text editor component
     if (!this.textEditorElement) return;
     this.textEditorElement.floatingMenuToolsMouseEnterHandler();
   }
 
   floatingMenuToolsMouseLeaveHandler() {
+    if (!this.isUserAuthorized()) return;
     // Delegate the event to the text editor component
     if (!this.textEditorElement) return;
     this.textEditorElement.floatingMenuToolsMouseLeaveHandler();
@@ -590,6 +655,11 @@ export class WordflowWordflow extends LitElement {
   floatingMenuToolButtonClickHandler(
     e: CustomEvent<[PromptDataLocal, number]>
   ) {
+    if (!this.isUserAuthorized()) {
+      this.showAuthRequired();
+      return;
+    }
+
     if (this.workflowElement === undefined) {
       throw Error('workflowElement is undefined');
     }
@@ -618,6 +688,14 @@ export class WordflowWordflow extends LitElement {
 
   textEditorLoadingFinishedHandler() {
     this.loadingActionIndex = null;
+  }
+
+  aiChatButtonClickHandler() {
+    if (!this.isUserAuthorized()) {
+      this.showAuthRequired();
+      return;
+    }
+    this.textEditorElement?.notifyContextualChat(true);
   }
 
   promptEditorShareClicked(e: CustomEvent<SharePromptMessage>) {
@@ -649,6 +727,8 @@ export class WordflowWordflow extends LitElement {
 
   // ===== Templates and Styles ======
   render() {
+    const isAuthorized = this.isUserAuthorized();
+
     return html`
       <div class="wordflow">
         <div class="toast-container">
@@ -693,6 +773,7 @@ export class WordflowWordflow extends LitElement {
               .promptManager=${this.promptManager}
               .userConfig=${this.userConfig}
               .textGenLocalWorker=${this.textGenLocalWorker}
+              .isAuthorized=${this.isUserAuthorized()}
               @loading-finished=${() => this.textEditorLoadingFinishedHandler()}
               @show-toast=${(e: CustomEvent<ToastMessage>) => {
                 this.toastMessage = e.detail.message;
@@ -700,6 +781,60 @@ export class WordflowWordflow extends LitElement {
                 this.toastComponent?.show();
               }}
             ></wordflow-text-editor>
+            ${!isAuthorized
+              ? html`<div class="auth-gate" role="region" aria-label="Sign in">
+                  <div class="auth-gate-panel">
+                    <h2>Please sign in before writing</h2>
+                    <p>
+                      Sign in with your Supabase account to unlock editing, AI
+                      tools, document saving, and history.
+                    </p>
+                    <div class="auth-form">
+                      <input
+                        class="auth-input"
+                        type="email"
+                        autocomplete="email"
+                        placeholder="Email"
+                        .value=${this.authEmailInput}
+                        @input=${(event: InputEvent) => {
+                          this.authEmailInput = (
+                            event.target as HTMLInputElement
+                          ).value;
+                        }}
+                      />
+                      <input
+                        class="auth-input"
+                        type="password"
+                        autocomplete="current-password"
+                        placeholder="Password"
+                        .value=${this.authPasswordInput}
+                        @input=${(event: InputEvent) => {
+                          this.authPasswordInput = (
+                            event.target as HTMLInputElement
+                          ).value;
+                        }}
+                        @keydown=${(event: KeyboardEvent) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void this.signIn();
+                          }
+                        }}
+                      />
+                      ${this.authError
+                        ? html`<div class="auth-error">${this.authError}</div>`
+                        : ''}
+                      <button
+                        class="auth-submit"
+                        type="button"
+                        ?disabled=${this.authSubmitting}
+                        @click=${() => void this.signIn()}
+                      >
+                        ${this.authSubmitting ? 'Signing in' : 'Sign in'}
+                      </button>
+                    </div>
+                  </div>
+                </div>`
+              : ''}
           </div>
         </div>
 
@@ -709,17 +844,6 @@ export class WordflowWordflow extends LitElement {
           ?is-open=${this.contextualChatOpen}
           style=${`left: ${this.contextualChatLeft}px; top: ${this.contextualChatTop}px;`}
         >
-          <button
-            class="contextual-chat-button"
-            type="button"
-            aria-label="Open AI Chat"
-            @mousedown=${(event: MouseEvent) => {
-              event.preventDefault();
-              this.contextualChatOpen = !this.contextualChatOpen;
-            }}
-          >
-            AI Chat
-          </button>
           <div class="contextual-chat-popover" role="dialog" aria-label="AI Chat">
             <div class="contextual-chat-header">
               <span>AI Chat</span>
@@ -749,6 +873,11 @@ export class WordflowWordflow extends LitElement {
             <div class="row user-row" title=${this.currentUserLabel}>
               User ${this.currentUserLabel}
             </div>
+            ${isAuthorized
+              ? html`<div class="row" @click=${() => this.signOut()}>
+                  Sign out
+                </div>`
+              : ''}
 
             <div
               class="row"
@@ -772,9 +901,7 @@ export class WordflowWordflow extends LitElement {
             @tool-button-clicked=${(
               e: CustomEvent<[PromptDataLocal, number]>
             ) => this.floatingMenuToolButtonClickHandler(e)}
-            @ai-chat-button-clicked=${() => {
-              this.textEditorElement?.notifyContextualChat(true);
-            }}
+            @ai-chat-button-clicked=${() => this.aiChatButtonClickHandler()}
             @setting-button-clicked=${() => {
               this.showSettingWindow = true;
             }}

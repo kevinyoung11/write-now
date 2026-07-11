@@ -3,17 +3,14 @@
   height: max-content;
 
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   justify-content: center;
   align-items: center;
 
   box-sizing: border-box;
 
   background-color: white;
-  border-radius: 25px;
-  box-shadow:
-    0 4px 8px 3px hsla(0, 0%, 0%, 0.08),
-    0 1px 3px hsla(0, 0%, 0%, 0.2);
+  border-radius: 999px;
   overflow: hidden;
 }
 
@@ -55,7 +52,7 @@
 button.tool-button {
   --padding: 4px;
   all: unset;
-  width: 100%;
+  width: auto;
   padding: var(--padding) var(--padding);
   line-height: 1;
   background-color: white;

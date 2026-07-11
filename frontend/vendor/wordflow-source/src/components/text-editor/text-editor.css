@@ -5,6 +5,7 @@
   background-color: var(--gray-50);
 
   display: flex;
+  align-items: flex-start;
   box-sizing: border-box;
   position: relative;
 }
@@ -148,5 +149,21 @@ mark {
     &::selection {
       background-color: transparent;
     }
+  }
+}
+
+@media (max-width: 900px) {
+  .text-editor-container {
+    min-height: calc(100dvh - 48px);
+    padding: 18px 20px 40px;
+    align-items: flex-start;
+  }
+
+  .text-editor {
+    min-height: calc(100dvh - 106px);
+  }
+
+  .tiptap {
+    min-height: calc(100dvh - 106px);
   }
 }

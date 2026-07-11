@@ -26,7 +26,6 @@ import { TextSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import { Collapse } from './collapse-node';
 import { EditHighlight } from './edit-highlight';
-import { EventHandler } from './event-handler';
 import { LoadingHighlight } from './loading-highlight';
 import { SidebarMenu } from './sidebar-menu-plugin';
 
@@ -108,6 +107,9 @@ export class WordflowTextEditor extends LitElement {
     value: TextGenMessage | PromiseLike<TextGenMessage>
   ) => {};
 
+  @property({ type: Boolean })
+  isAuthorized = false;
+
   @query('.text-editor-container')
   containerElement: HTMLElement | undefined;
 
@@ -160,7 +162,7 @@ export class WordflowTextEditor extends LitElement {
     });
 
     window.addEventListener('beforeunload', () => {
-      if (this.editor !== null) {
+      if (this.editor !== null && this.isAuthorized) {
         // Save the editor's content to local storage
         const content = this.editor.getJSON();
         localStorage.setItem('last-editor-content', JSON.stringify(content));
@@ -181,7 +183,6 @@ export class WordflowTextEditor extends LitElement {
       this.editorElement === undefined ||
       this.selectMenuElement === undefined ||
       this.containerElement === undefined ||
-      this.floatingMenuBox === undefined ||
       this.popperSidebarBox === undefined ||
       this.updateSidebarMenu === undefined
     ) {
@@ -249,10 +250,6 @@ export class WordflowTextEditor extends LitElement {
       popperOptions
     });
 
-    const myEventHandler = EventHandler.configure({
-      floatingMenuBox: this.floatingMenuBox
-    });
-
     // Show welcome text if the user has never run a prompt
     let defaultText: string | JSONContent = '';
 
@@ -288,11 +285,11 @@ export class WordflowTextEditor extends LitElement {
         myLoadingHighlight,
         Collapse,
         mySidebarMenu,
-        myEventHandler,
         myPlaceholder
       ],
       content: defaultText,
-      autofocus: true,
+      editable: this.isAuthorized,
+      autofocus: this.isAuthorized,
       editorProps: {
         handleKeyDown: (_view, event) =>
           this.contextualChatKeydownHandler(event)
@@ -306,12 +303,28 @@ export class WordflowTextEditor extends LitElement {
    */
   willUpdate(changedProperties: PropertyValues<this>) {}
 
+  updated(changedProperties: PropertyValues<this>) {
+    if (changedProperties.has('isAuthorized')) {
+      if (this.editor !== null) {
+        this.editor.setEditable(this.isAuthorized);
+      }
+      if (!this.isAuthorized) {
+        this.updateContextualChat?.({ visible: false });
+      }
+    }
+  }
+
   //==========================================================================||
   //                              Custom Methods                              ||
   //==========================================================================||
   async initData() {}
 
   contextualChatKeydownHandler(event: KeyboardEvent) {
+    if (!this.isAuthorized) {
+      this.updateContextualChat?.({ visible: false });
+      return false;
+    }
+
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j') {
       event.preventDefault();
       this.notifyContextualChat(true);
@@ -322,6 +335,10 @@ export class WordflowTextEditor extends LitElement {
 
   notifyContextualChat(open: boolean) {
     if (this.editor === null || this.updateContextualChat === undefined) return;
+    if (!this.isAuthorized) {
+      this.updateContextualChat({ visible: false });
+      return;
+    }
 
     const { state, view } = this.editor;
     const { selection } = state;
@@ -834,6 +851,7 @@ export class WordflowTextEditor extends LitElement {
    * text or the current paragraph (if there is no selection).
    */
   floatingMenuToolsMouseEnterHandler() {
+    if (!this.isAuthorized) return;
     if (this.editor === null) {
       console.error('Editor is not initialized yet.');
       return;
@@ -855,6 +873,7 @@ export class WordflowTextEditor extends LitElement {
    * Cancel any highlighting set from mouseenter
    */
   floatingMenuToolsMouseLeaveHandler() {
+    if (!this.isAuthorized) return;
     if (this.editor === null) {
       console.error('Editor is not initialized yet.');
       return;
@@ -873,6 +892,19 @@ export class WordflowTextEditor extends LitElement {
    * Execute the prompt on the selected text
    */
   floatingMenuToolButtonClickHandler(promptData: PromptDataLocal) {
+    if (!this.isAuthorized) {
+      const event = new CustomEvent<ToastMessage>('show-toast', {
+        bubbles: true,
+        composed: true,
+        detail: {
+          message: 'Please sign in before writing',
+          type: 'warning'
+        }
+      });
+      this.dispatchEvent(event);
+      return;
+    }
+
     if (this.editor === null) {
       console.error('Editor is not initialized yet.');
       return;
@@ -1359,6 +1391,7 @@ export class WordflowTextEditor extends LitElement {
     return html` <div class="text-editor-container">
       <div
         class="text-editor"
+        contenteditable="false"
         ?is-hovering-floating-menu=${this.isHoveringFloatingMenu}
       ></div>
     </div>`;
