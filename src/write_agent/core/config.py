@@ -49,6 +49,7 @@ class Settings(BaseSettings):
         "https://62uqq9jku8.execute-api.us-east-1.amazonaws.com/prod/records"
     )
     enable_schedulers: bool = True
+    bootstrap_default_data: bool = True
 
     # 硅基流动 Embedding API 配置
     siliconflow_api_key: str = ""

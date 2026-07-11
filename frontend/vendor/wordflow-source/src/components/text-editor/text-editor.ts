@@ -234,21 +234,15 @@ export class WordflowTextEditor extends LitElement {
       popperOptions
     });
 
-    // Show welcome text if the user has never run a prompt
     let defaultText: string | JSONContent = '';
-
-    // Try to restore the last session's content
-    const lastEditorContent = localStorage.getItem('last-editor-content');
+    const lastEditorContent = this.getLocalEditorSnapshot();
     if (lastEditorContent !== null) {
-      defaultText = JSON.parse(lastEditorContent) as JSONContent;
+      defaultText = lastEditorContent;
     }
 
     const hasRunAPrompt = localStorage.getItem('has-run-a-prompt');
-    if (hasRunAPrompt === null) {
+    if (lastEditorContent === null && hasRunAPrompt === null) {
       defaultText = `${WELCOME_TEXT}`;
-    } else {
-      // TODO: Safari web app can't save to local storage before window close
-      defaultText = '';
     }
 
     if (DEV_MODE) {
@@ -796,6 +790,28 @@ export class WordflowTextEditor extends LitElement {
   loadDocumentHtml(contentHtml: string) {
     if (this.editor === null) return;
     this.editor.commands.setContent(contentHtml || '');
+    const content = this.editor.getJSON();
+    localStorage.setItem('last-editor-content', JSON.stringify(content));
+  }
+
+  getLocalEditorSnapshot(): JSONContent | null {
+    const lastEditorContent = localStorage.getItem('last-editor-content');
+    if (lastEditorContent === null) return null;
+    try {
+      return JSON.parse(lastEditorContent) as JSONContent;
+    } catch (error) {
+      console.warn('Failed to parse last-editor-content', error);
+      localStorage.removeItem('last-editor-content');
+      return null;
+    }
+  }
+
+  restoreLocalEditorSnapshot() {
+    if (this.editor === null) return false;
+    const lastEditorContent = this.getLocalEditorSnapshot();
+    if (lastEditorContent === null) return false;
+    this.editor.commands.setContent(lastEditorContent);
+    return true;
   }
 
   getCleanDocumentSnapshot(): DocumentSnapshot {

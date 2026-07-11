@@ -54,6 +54,44 @@ def test_document_list_is_user_scoped():
     assert response.json()["items"] == []
 
 
+def test_current_document_returns_latest_document_with_version():
+    client = TestClient(app)
+    user_id = f"writer-current-{uuid4().hex}"
+    old_document = client.post(
+        "/api/documents",
+        headers={"X-Dev-User-Id": user_id},
+        json={"title": "Old", "content_html": "<p>old</p>", "content_text": "old"},
+    ).json()
+    latest_document = client.post(
+        "/api/documents",
+        headers={"X-Dev-User-Id": user_id},
+        json={"title": "Latest", "content_html": "<p>latest</p>", "content_text": "latest"},
+    ).json()
+
+    response = client.get(
+        "/api/documents/current",
+        headers={"X-Dev-User-Id": user_id},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["document"]["id"] == latest_document["id"]
+    assert response.json()["document"]["id"] != old_document["id"]
+    assert response.json()["document"]["current_version"]["content_text"] == "latest"
+
+
+def test_current_document_returns_null_for_empty_user():
+    client = TestClient(app)
+    user_id = f"writer-current-empty-{uuid4().hex}"
+
+    response = client.get(
+        "/api/documents/current",
+        headers={"X-Dev-User-Id": user_id},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"document": None}
+
+
 def test_save_version_and_rollback():
     client = TestClient(app)
     user_id = f"writer-rollback-{uuid4().hex}"

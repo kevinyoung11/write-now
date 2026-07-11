@@ -197,6 +197,22 @@
   }
 }
 
+.loading-document {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 3;
+  border: 1px solid var(--gray-300);
+  border-radius: 999px;
+  background: color-mix(in srgb, white, var(--gray-50) 18%);
+  box-shadow: 0 4px 14px hsla(0, 0%, 0%, 0.08);
+  color: var(--gray-600);
+  font-size: var(--font-d3);
+  line-height: 1;
+  padding: 8px 10px;
+  pointer-events: none;
+}
+
 .auth-gate {
   position: absolute;
   inset: 0;

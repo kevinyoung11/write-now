@@ -211,25 +211,28 @@ async def lifespan(app: FastAPI):
     # 启动时执行
     validate_registry()
     logger.info("🚀 写作智能体 API 启动中...")
-    seed_result = bootstrap_default_styles()
-    logger.info(
-        "默认风格初始化完成: writing=%s, cover=%s",
-        seed_result["inserted_writing_styles"],
-        seed_result["inserted_cover_styles"],
-    )
-    workflow_job_service = get_workflow_job_service()
-    workflow_job_service.start()
-    recovered_jobs = workflow_job_service.resume_stale_jobs()
-    if recovered_jobs:
-        logger.warning("检测并恢复中断工作流任务: %s", recovered_jobs)
+    if settings.bootstrap_default_data:
+        seed_result = bootstrap_default_styles()
+        logger.info(
+            "默认风格初始化完成: writing=%s, cover=%s",
+            seed_result["inserted_writing_styles"],
+            seed_result["inserted_cover_styles"],
+        )
+    workflow_job_service = None
+    if settings.enable_schedulers:
+        workflow_job_service = get_workflow_job_service()
+        workflow_job_service.start()
+        recovered_jobs = workflow_job_service.resume_stale_jobs()
+        if recovered_jobs:
+            logger.warning("检测并恢复中断工作流任务: %s", recovered_jobs)
     scheduler_task: asyncio.Task | None = None
     linuxdo_scheduler_task: asyncio.Task | None = None
     if settings.enable_schedulers:
         scheduler_task = asyncio.create_task(_github_trending_scheduler_loop())
         linuxdo_scheduler_task = asyncio.create_task(_linuxdo_trending_scheduler_loop())
-    workflow_recovery_task: asyncio.Task | None = asyncio.create_task(
-        _workflow_stale_recovery_loop()
-    )
+    workflow_recovery_task: asyncio.Task | None = None
+    if settings.enable_schedulers:
+        workflow_recovery_task = asyncio.create_task(_workflow_stale_recovery_loop())
     try:
         yield
     finally:
@@ -246,7 +249,8 @@ async def lifespan(app: FastAPI):
             workflow_recovery_task.cancel()
             with suppress(asyncio.CancelledError):
                 await workflow_recovery_task
-        workflow_job_service.stop()
+        if workflow_job_service:
+            workflow_job_service.stop()
         logger.info("👋 写作智能体 API 关闭")
 
 

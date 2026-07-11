@@ -28,6 +28,10 @@ export interface DocumentListItemPayload {
   updated_at?: string;
 }
 
+export interface CurrentDocumentPayload {
+  document: DocumentPayload | null;
+}
+
 export async function listDocuments(): Promise<DocumentListItemPayload[]> {
   const response = await fetch(config.urls.documentsEndpoint, {
     headers: authHeaders(false)
@@ -43,6 +47,14 @@ export async function getDocument(documentId: number): Promise<DocumentPayload> 
     headers: authHeaders(false)
   });
   return parseJsonResponse<DocumentPayload>(response);
+}
+
+export async function getCurrentDocument(): Promise<DocumentPayload | null> {
+  const response = await fetch(`${config.urls.documentsEndpoint}/current`, {
+    headers: authHeaders(false)
+  });
+  const payload = await parseJsonResponse<CurrentDocumentPayload>(response);
+  return payload.document;
 }
 
 export async function createDocument(
